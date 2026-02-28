@@ -5,10 +5,13 @@ import android.hardware.SensorManager
 import android.os.Build
 import android.os.Vibrator
 import android.os.VibratorManager
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -16,8 +19,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -72,37 +80,81 @@ fun MagnetometerScreen(
     val isCalibrating by viewModel.isCalibrating.collectAsState()
     val calibrationProgress by viewModel.calibrationProgress.collectAsState()
 
-    val scale by animateFloatAsState(
-        targetValue = if (anomalyScore > 0.7f) 1.2f else 1f,
-        animationSpec = tween(800),
-        label = "PulseAnimation"
+    // Determine status colors
+    val statusColor by animateColorAsState(
+        targetValue = when {
+            anomalyScore > 0.7f -> Color(0xFFFF4444) // Intense Red
+            anomalyScore > 0.3f -> Color(0xFFFFBB33) // Warning Orange
+            else -> Color(0xFF00C851) // Safe Green
+        },
+        animationSpec = tween(500),
+        label = "StatusColor"
+    )
+
+    // Pulse Animation
+    val infiniteTransition = rememberInfiniteTransition(label = "PulseTransition")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = when {
+            anomalyScore > 0.7f -> 1.12f
+            anomalyScore > 0.3f -> 1.05f
+            else -> 1f
+        },
+        animationSpec = infiniteRepeatable(
+            animation = tween(if (anomalyScore > 0.7f) 400 else 800, easing = LinearOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "PulseScale"
+    )
+
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.1f,
+        targetValue = when {
+            anomalyScore > 0.7f -> 0.6f
+            anomalyScore > 0.3f -> 0.3f
+            else -> 0.1f
+        },
+        animationSpec = infiniteRepeatable(
+            animation = tween(if (anomalyScore > 0.7f) 400 else 800, easing = LinearOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "GlowAlpha"
     )
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("EM Field Scanner") },
+                title = { Text("EM Field Scanner", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black,
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White
+                )
             )
-        }
+        },
+        containerColor = Color.Black // Set background to Black to integrate the asset boxes
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState()) // FIX: Added scrolling for smaller screens
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Top // Changed from Center to Top for better scrolling
+            verticalArrangement = Arrangement.Top
         ) {
             if (!allPermissionsGranted) {
+                // ... Permission UI ...
+                Spacer(Modifier.height(40.dp))
                 Text(
                     text = "Vibration permission required for alerts",
                     style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 Spacer(Modifier.height(16.dp))
@@ -110,37 +162,68 @@ fun MagnetometerScreen(
                     Text("Grant Permission")
                 }
             } else {
+                Spacer(Modifier.height(16.dp))
                 Text(
                     text = "Field Magnitude",
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.LightGray
                 )
                 Text(
                     text = "${"%.1f".format(magnitude)} μT",
-                    style = MaterialTheme.typography.displayMedium
+                    style = MaterialTheme.typography.displayMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "Baseline: ${"%.1f".format(baseline)} μT",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.secondary
+                    color = statusColor, // Baseline text color shows the current status
+                    fontWeight = FontWeight.Medium
                 )
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(40.dp))
 
-                val assetPath = when {
-                    anomalyScore > 0.7f -> "file:///android_asset/warning_triangle.png"
-                    anomalyScore > 0.3f -> "file:///android_asset/caution_triangle.png"
-                    else -> "file:///android_asset/baseline_triangle.png"
+                // Image Container with integrated glow and animation
+                Box(
+                    modifier = Modifier
+                        .size(240.dp)
+                        .drawBehind {
+                            // Radial glow effect behind the image
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    0f to statusColor.copy(alpha = glowAlpha),
+                                    0.7f to statusColor.copy(alpha = 0f)
+                                ),
+                                radius = size.minDimension / 1.2f
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    val assetPath = when {
+                        anomalyScore > 0.7f -> "file:///android_asset/warning_triangle.png"
+                        anomalyScore > 0.3f -> "file:///android_asset/caution_triangle.png"
+                        else -> "file:///android_asset/baseline_triangle.png"
+                    }
+
+                    AsyncImage(
+                        model = assetPath,
+                        contentDescription = "Alert Status",
+                        modifier = Modifier
+                            .size(220.dp)
+                            .scale(pulseScale)
+                            .clip(CircleShape) // Helps if assets have hard corners
+                    )
+                    
+                    // Outer ring for "tech" feel
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .scale(pulseScale)
+                            .border(2.dp, statusColor.copy(alpha = 0.3f), CircleShape)
+                    )
                 }
 
-                AsyncImage(
-                    model = assetPath,
-                    contentDescription = "Alert Status",
-                    modifier = Modifier
-                        .size(200.dp) // Adjusted size
-                        .scale(scale)
-                )
-
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(24.dp))
 
                 Text(
                     text = when {
@@ -150,15 +233,15 @@ fun MagnetometerScreen(
                     },
                     style = MaterialTheme.typography.headlineSmall,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    color = if (anomalyScore > 0.7f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+                    color = statusColor,
+                    fontWeight = FontWeight.Bold
                 )
 
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(48.dp))
 
                 if (isCalibrating) {
-                    // Added background for the progress section
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        color = Color.DarkGray.copy(alpha = 0.5f),
                         shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -169,32 +252,33 @@ fun MagnetometerScreen(
                             LinearProgressIndicator(
                                 progress = { calibrationProgress },
                                 modifier = Modifier.fillMaxWidth(),
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.outlineVariant
+                                color = statusColor,
+                                trackColor = Color.Gray
                             )
                             Spacer(Modifier.height(12.dp))
                             Text(
                                 text = "Calibrating... Hold steady",
+                                color = Color.White,
                                 style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                text = "${(calibrationProgress * 100).toInt()}%",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
                 } else {
                     Button(
                         onClick = { viewModel.startCalibration() },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = statusColor),
+                        shape = MaterialTheme.shapes.medium
                     ) {
-                        Text("Recalibrate")
+                        Text(
+                            "Recalibrate", 
+                            color = if (statusColor == Color(0xFFFFBB33)) Color.Black else Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
                 
-                // Extra padding at bottom for scroll visibility
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(32.dp))
             }
         }
     }

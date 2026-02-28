@@ -4,7 +4,7 @@
     <selectionStates>
       <SelectionState runConfigName="PocketNarc">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-02-28T09:25:08.967735400Z">
+        <DropdownSelection timestamp="2026-02-28T23:16:43.018167100Z">
           <Target type="DEFAULT_BOOT">
             <handle>
               <DeviceId pluginId="PhysicalDevice" identifier="serial=4C031FDAS000RT" />
