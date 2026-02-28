@@ -19,8 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.pocketnarc.privacyshield.utils.rememberVibratePermissionState
@@ -114,26 +112,16 @@ fun MagnetometerScreen(
 
                 Spacer(Modifier.height(32.dp))
 
-                // Dynamic alert icon + pulse animation on strong anomaly
-                val alertIcon = when {
-                    anomalyScore > 0.7f -> "file:///android_asset/warning_triangle.png"
-                    anomalyScore > 0.3f -> "file:///android_asset/caution_triangle.png"
-                    else -> "file:///android_asset/baseline_triangle.png"
-                }
-
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(alertIcon)
-                        .build(),
+                // Using standard Material Icon instead of AsyncImage to avoid Coil dependency issues
+                Icon(
+                    imageVector = Icons.Default.ArrowBack, // Placeholder, usually a custom vector
                     contentDescription = "Alert Status",
                     modifier = Modifier
                         .size(160.dp)
                         .scale(scale),
-                    colorFilter = ColorFilter.tint(
-                        if (anomalyScore > 0.7f) MaterialTheme.colorScheme.error
-                        else if (anomalyScore > 0.3f) MaterialTheme.colorScheme.tertiary
-                        else MaterialTheme.colorScheme.primary
-                    )
+                    tint = if (anomalyScore > 0.7f) MaterialTheme.colorScheme.error
+                    else if (anomalyScore > 0.3f) MaterialTheme.colorScheme.tertiary
+                    else MaterialTheme.colorScheme.primary
                 )
 
                 Spacer(Modifier.height(16.dp))
