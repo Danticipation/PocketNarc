@@ -15,16 +15,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 import kotlin.math.sqrt
 
 class MagnetometerViewModel(
     private val sensorManager: SensorManager,
     private val vibrator: Vibrator
 ) : ViewModel(), DefaultLifecycleObserver, SensorEventListener {
-
-    private val _rawField = MutableStateFlow(Triple(0f, 0f, 0f))
-    val rawField: StateFlow<Triple<Float, Float, Float>> = _rawField.asStateFlow()
 
     private val _filteredMagnitude = MutableStateFlow(0f)
     val filteredMagnitude: StateFlow<Float> = _filteredMagnitude.asStateFlow()
@@ -80,8 +76,6 @@ class MagnetometerViewModel(
         val y = event.values[1]
         val z = event.values[2]
 
-        _rawField.value = Triple(x, y, z)
-
         // Raw magnitude
         val rawMagnitude = sqrt(x*x + y*y + z*z)
 
@@ -95,7 +89,6 @@ class MagnetometerViewModel(
 
         if (_isCalibrating.value) {
             // Simplified collection: just add samples until we hit the count
-            // Outlier rejection was causing deadlock when stddev was 0
             calibrationSamples.add(smoothedMagnitude)
             _calibrationProgress.value = (calibrationSamples.size.toFloat() / calibrationSampleCount).coerceIn(0f, 1f)
 
