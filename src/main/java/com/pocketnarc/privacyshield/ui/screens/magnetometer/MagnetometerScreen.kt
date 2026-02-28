@@ -22,11 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -80,51 +83,55 @@ fun MagnetometerScreen(
     val isCalibrating by viewModel.isCalibrating.collectAsState()
     val calibrationProgress by viewModel.calibrationProgress.collectAsState()
 
-    // Determine status colors
     val statusColor by animateColorAsState(
         targetValue = when {
-            anomalyScore > 0.7f -> Color(0xFFFF4444) // Intense Red
-            anomalyScore > 0.3f -> Color(0xFFFFBB33) // Warning Orange
-            else -> Color(0xFF00C851) // Safe Green
+            anomalyScore > 0.7f -> Color(0xFFFF3333)
+            anomalyScore > 0.3f -> Color(0xFFFFBB33)
+            else -> Color(0xFF00E676)
         },
-        animationSpec = tween(500),
+        animationSpec = tween(400),
         label = "StatusColor"
     )
 
-    // Pulse Animation
-    val infiniteTransition = rememberInfiniteTransition(label = "PulseTransition")
+    val infiniteTransition = rememberInfiniteTransition(label = "TechAnimations")
+    
+    // Scale animation
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = when {
-            anomalyScore > 0.7f -> 1.12f
-            anomalyScore > 0.3f -> 1.05f
-            else -> 1f
-        },
+        targetValue = if (anomalyScore > 0.7f) 1.15f else if (anomalyScore > 0.3f) 1.08f else 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(if (anomalyScore > 0.7f) 400 else 800, easing = LinearOutSlowInEasing),
+            animation = tween(if (anomalyScore > 0.7f) 350 else 800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "PulseScale"
     )
 
-    val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.1f,
-        targetValue = when {
-            anomalyScore > 0.7f -> 0.6f
-            anomalyScore > 0.3f -> 0.3f
-            else -> 0.1f
-        },
+    // Flicker for strong anomalies
+    val flickerAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (anomalyScore > 0.7f) 0.85f else 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(if (anomalyScore > 0.7f) 400 else 800, easing = LinearOutSlowInEasing),
+            animation = tween(50, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "GlowAlpha"
+        label = "Flicker"
+    )
+
+    // Moving scanline
+    val scanlineOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "Scanline"
     )
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("EM Field Scanner", fontWeight = FontWeight.Bold) },
+                title = { Text("SENSOR_MAG_SCANNER", fontFamily = FontFamily.Monospace, fontSize = 18.sp) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -132,69 +139,72 @@ fun MagnetometerScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Black,
-                    titleContentColor = Color.White,
+                    titleContentColor = statusColor,
                     navigationIconContentColor = Color.White
                 )
             )
         },
-        containerColor = Color.Black // Set background to Black to integrate the asset boxes
+        containerColor = Color.Black
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 8.dp),
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
             if (!allPermissionsGranted) {
-                // ... Permission UI ...
-                Spacer(Modifier.height(40.dp))
-                Text(
-                    text = "Vibration permission required for alerts",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.White,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-                Spacer(Modifier.height(16.dp))
+                // Permission UI
+                Spacer(Modifier.height(48.dp))
                 Button(onClick = { permissionState.launchMultiplePermissionRequest() }) {
-                    Text("Grant Permission")
+                    Text("INITIALIZE SENSORS")
                 }
             } else {
-                Spacer(Modifier.height(16.dp))
                 Text(
-                    text = "Field Magnitude",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.LightGray
+                    text = "FIELD MAGNITUDE",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.Gray,
+                    fontFamily = FontFamily.Monospace
                 )
                 Text(
                     text = "${"%.1f".format(magnitude)} μT",
                     style = MaterialTheme.typography.displayMedium,
                     color = Color.White,
-                    fontWeight = FontWeight.Bold
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.ExtraBold
                 )
                 Text(
-                    text = "Baseline: ${"%.1f".format(baseline)} μT",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = statusColor, // Baseline text color shows the current status
-                    fontWeight = FontWeight.Medium
+                    text = "BASELINE: ${"%.1f".format(baseline)} μT",
+                    color = statusColor.copy(alpha = flickerAlpha),
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
                 )
 
-                Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(48.dp))
 
-                // Image Container with integrated glow and animation
+                // The "Scanner" Container
                 Box(
                     modifier = Modifier
-                        .size(240.dp)
+                        .size(260.dp)
                         .drawBehind {
-                            // Radial glow effect behind the image
+                            // Radial Background Glow
                             drawCircle(
                                 brush = Brush.radialGradient(
-                                    0f to statusColor.copy(alpha = glowAlpha),
-                                    0.7f to statusColor.copy(alpha = 0f)
+                                    0f to statusColor.copy(alpha = 0.4f * (if(anomalyScore > 0.7f) flickerAlpha else 1f)),
+                                    0.8f to Color.Transparent
                                 ),
-                                radius = size.minDimension / 1.2f
+                                radius = size.minDimension / 1.1f
+                            )
+                            
+                            // Moving Scanline Effect
+                            val y = scanlineOffset * size.height
+                            drawLine(
+                                color = statusColor.copy(alpha = 0.2f),
+                                start = Offset(0f, y),
+                                end = Offset(size.width, y),
+                                strokeWidth = 2.dp.toPx()
                             )
                         },
                     contentAlignment = Alignment.Center
@@ -207,78 +217,72 @@ fun MagnetometerScreen(
 
                     AsyncImage(
                         model = assetPath,
-                        contentDescription = "Alert Status",
+                        contentDescription = "Status",
                         modifier = Modifier
                             .size(220.dp)
                             .scale(pulseScale)
-                            .clip(CircleShape) // Helps if assets have hard corners
+                            .clip(CircleShape)
                     )
                     
-                    // Outer ring for "tech" feel
+                    // Technical outer rings
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .scale(pulseScale)
-                            .border(2.dp, statusColor.copy(alpha = 0.3f), CircleShape)
+                            .border(1.dp, statusColor.copy(alpha = 0.15f), CircleShape)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize(0.85f)
+                            .border(0.5.dp, statusColor.copy(alpha = 0.1f), CircleShape)
                     )
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(32.dp))
 
                 Text(
                     text = when {
-                        anomalyScore > 0.7f -> "STRONG ANOMALY DETECTED!"
-                        anomalyScore > 0.3f -> "Elevated field detected"
-                        else -> "Normal background levels"
+                        anomalyScore > 0.7f -> "!! ANOMALY DETECTED !!"
+                        anomalyScore > 0.3f -> "> ELEVATED LEVELS <"
+                        else -> "SYSTEM_SECURE"
                     },
-                    style = MaterialTheme.typography.headlineSmall,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    color = statusColor,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleLarge,
+                    color = statusColor.copy(alpha = flickerAlpha),
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Black
                 )
 
-                Spacer(Modifier.height(48.dp))
+                Spacer(Modifier.height(56.dp))
 
                 if (isCalibrating) {
-                    Surface(
-                        color = Color.DarkGray.copy(alpha = 0.5f),
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            LinearProgressIndicator(
-                                progress = { calibrationProgress },
-                                modifier = Modifier.fillMaxWidth(),
-                                color = statusColor,
-                                trackColor = Color.Gray
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                text = "Calibrating... Hold steady",
-                                color = Color.White,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        LinearProgressIndicator(
+                            progress = { calibrationProgress },
+                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                            color = statusColor,
+                            trackColor = Color.DarkGray
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "CALIBRATING SENSORS...", 
+                            color = Color.LightGray, 
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp
+                        )
                     }
                 } else {
-                    Button(
+                    OutlinedButton(
                         onClick = { viewModel.startCalibration() },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = statusColor),
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = statusColor),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, statusColor.copy(alpha = 0.5f)),
                         shape = MaterialTheme.shapes.medium
                     ) {
-                        Text(
-                            "Recalibrate", 
-                            color = if (statusColor == Color(0xFFFFBB33)) Color.Black else Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("RE-CALIBRATE SYSTEM", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                     }
                 }
                 
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(40.dp))
             }
         }
     }
