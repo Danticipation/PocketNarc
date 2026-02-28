@@ -43,15 +43,13 @@ class MagnetometerViewModel(
 
     // Configurable constants (tune these)
     private val filterAlpha = 0.92f           // IIR smoothing factor
-    private val calibrationSampleCount = 120  // ~10 seconds at UI delay
-    private val outlierThreshold = 3.0f       // z-score outlier rejection
+    private val calibrationSampleCount = 100  // ~5-8 seconds at UI delay
     private val alertThreshold = 3.5f         // z-score for vibration/alert
 
     private var smoothedMagnitude = 0f
     private val calibrationSamples = mutableListOf<Float>()
 
     init {
-        // Optional auto-calibrate on first start
         startCalibration()
     }
 
@@ -87,32 +85,36 @@ class MagnetometerViewModel(
         // Raw magnitude
         val rawMagnitude = sqrt(x*x + y*y + z*z)
 
-        // IIR low-pass filter (industrial-grade smoothing)
-        smoothedMagnitude = filterAlpha * rawMagnitude + (1 - filterAlpha) * smoothedMagnitude
+        // IIR low-pass filter (initializes to first reading)
+        if (smoothedMagnitude == 0f) {
+            smoothedMagnitude = rawMagnitude
+        } else {
+            smoothedMagnitude = filterAlpha * rawMagnitude + (1 - filterAlpha) * smoothedMagnitude
+        }
         _filteredMagnitude.value = smoothedMagnitude
 
         if (_isCalibrating.value) {
-            // Collect samples, reject outliers
-            if (calibrationSamples.isEmpty() || abs(smoothedMagnitude - calibrationSamples.average().toFloat()) < outlierThreshold * calibrationSamples.stddev()) {
-                calibrationSamples.add(smoothedMagnitude)
-                _calibrationProgress.value = calibrationSamples.size.toFloat() / calibrationSampleCount
-            }
+            // Simplified collection: just add samples until we hit the count
+            // Outlier rejection was causing deadlock when stddev was 0
+            calibrationSamples.add(smoothedMagnitude)
+            _calibrationProgress.value = (calibrationSamples.size.toFloat() / calibrationSampleCount).coerceIn(0f, 1f)
 
             if (calibrationSamples.size >= calibrationSampleCount) {
-                // Final baseline = trimmed mean (remove top/bottom 10%)
+                // Final baseline = trimmed mean (remove top/bottom 10% to handle spikes)
                 calibrationSamples.sort()
                 val trim = calibrationSamples.size / 10
-                _calibratedBaseline.value = calibrationSamples.subList(trim, calibrationSamples.size - trim).average().toFloat()
+                val trimmedList = calibrationSamples.subList(trim, calibrationSamples.size - trim)
+                _calibratedBaseline.value = trimmedList.average().toFloat()
                 _isCalibrating.value = false
             }
         } else {
             val baseline = _calibratedBaseline.value
             if (baseline > 0f) {
                 val deviation = smoothedMagnitude - baseline
-                val zScore = deviation / (baseline * 0.15f) // empirical std dev factor
-                _anomalyScore.value = (zScore / alertThreshold).coerceIn(-1f, 1f)
+                // Anomaly detection: focus on positive deviation (added field)
+                val zScore = deviation / (baseline * 0.12f) 
+                _anomalyScore.value = (zScore / alertThreshold).coerceIn(0f, 1f)
 
-                // Trigger vibration + alert if above threshold
                 if (zScore > alertThreshold) {
                     triggerAlert()
                 }
@@ -123,24 +125,15 @@ class MagnetometerViewModel(
     private fun triggerAlert() {
         if (vibrator.hasVibrator()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(300, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(300)
+                vibrator.vibrate(200)
             }
         }
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        // Future: handle low accuracy
-    }
-
-    private fun List<Float>.stddev(): Float {
-        if (isEmpty()) return 0f
-        val mean = average().toFloat()
-        val variance = map { (it - mean) * (it - mean) }.average().toFloat()
-        return sqrt(variance)
-    }
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     override fun onCleared() {
         sensorManager.unregisterListener(this)

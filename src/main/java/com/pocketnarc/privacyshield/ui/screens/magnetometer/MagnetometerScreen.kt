@@ -8,6 +8,8 @@ import android.os.VibratorManager
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -53,7 +55,6 @@ fun MagnetometerScreen(
         }
     )
 
-    // Register the ViewModel as a lifecycle observer so onStart/onStop register the sensors
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.addObserver(viewModel)
@@ -62,14 +63,7 @@ fun MagnetometerScreen(
         }
     }
 
-    val permissionState = rememberVibratePermissionState(
-        onGranted = {
-            if (viewModel.calibratedBaseline.value <= 0f) {
-                viewModel.startCalibration()
-            }
-        }
-    )
-
+    val permissionState = rememberVibratePermissionState()
     val allPermissionsGranted = permissionState.permissions.all { it.status.isGranted }
 
     val anomalyScore by viewModel.anomalyScore.collectAsState()
@@ -78,9 +72,8 @@ fun MagnetometerScreen(
     val isCalibrating by viewModel.isCalibrating.collectAsState()
     val calibrationProgress by viewModel.calibrationProgress.collectAsState()
 
-    // Animation for strong anomaly (pulse effect)
     val scale by animateFloatAsState(
-        targetValue = if (anomalyScore > 0.7f) 1.25f else 1f,
+        targetValue = if (anomalyScore > 0.7f) 1.2f else 1f,
         animationSpec = tween(800),
         label = "PulseAnimation"
     )
@@ -101,15 +94,16 @@ fun MagnetometerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(24.dp),
+                .verticalScroll(rememberScrollState()) // FIX: Added scrolling for smaller screens
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top // Changed from Center to Top for better scrolling
         ) {
             if (!allPermissionsGranted) {
                 Text(
                     text = "Vibration permission required for alerts",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 Spacer(Modifier.height(16.dp))
                 Button(onClick = { permissionState.launchMultiplePermissionRequest() }) {
@@ -120,20 +114,18 @@ fun MagnetometerScreen(
                     text = "Field Magnitude",
                     style = MaterialTheme.typography.titleLarge
                 )
-                Spacer(Modifier.height(8.dp))
                 Text(
                     text = "${"%.1f".format(magnitude)} μT",
                     style = MaterialTheme.typography.displayMedium
                 )
-                Spacer(Modifier.height(8.dp))
                 Text(
                     text = "Baseline: ${"%.1f".format(baseline)} μT",
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.secondary
                 )
 
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(24.dp))
 
-                // Use Coil to load assets from the assets folder
                 val assetPath = when {
                     anomalyScore > 0.7f -> "file:///android_asset/warning_triangle.png"
                     anomalyScore > 0.3f -> "file:///android_asset/caution_triangle.png"
@@ -144,7 +136,7 @@ fun MagnetometerScreen(
                     model = assetPath,
                     contentDescription = "Alert Status",
                     modifier = Modifier
-                        .size(180.dp)
+                        .size(200.dp) // Adjusted size
                         .scale(scale)
                 )
 
@@ -156,24 +148,53 @@ fun MagnetometerScreen(
                         anomalyScore > 0.3f -> "Elevated field detected"
                         else -> "Normal background levels"
                     },
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     color = if (anomalyScore > 0.7f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
                 )
 
                 Spacer(Modifier.height(32.dp))
 
                 if (isCalibrating) {
-                    LinearProgressIndicator(
-                        progress = { calibrationProgress },
+                    // Added background for the progress section
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text("Calibrating... Hold steady (${(calibrationProgress * 100).toInt()}%)")
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            LinearProgressIndicator(
+                                progress = { calibrationProgress },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.outlineVariant
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = "Calibrating... Hold steady",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "${(calibrationProgress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 } else {
-                    Button(onClick = { viewModel.startCalibration() }) {
+                    Button(
+                        onClick = { viewModel.startCalibration() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text("Recalibrate")
                     }
                 }
+                
+                // Extra padding at bottom for scroll visibility
+                Spacer(Modifier.height(24.dp))
             }
         }
     }
