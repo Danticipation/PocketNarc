@@ -2,23 +2,26 @@ package com.pocketnarc.privacyshield.ui.screens.magnetometer
 
 import android.content.Context
 import android.hardware.SensorManager
+import android.os.Build
 import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.pocketnarc.privacyshield.utils.rememberVibratePermissionState
@@ -30,7 +33,16 @@ fun MagnetometerScreen(
 ) {
     val context = LocalContext.current
     val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    
+    val vibrator = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+    }
 
     val viewModel: MagnetometerViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
@@ -40,6 +52,15 @@ fun MagnetometerScreen(
             }
         }
     )
+
+    // Register the ViewModel as a lifecycle observer so onStart/onStop register the sensors
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.addObserver(viewModel)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(viewModel)
+        }
+    }
 
     val permissionState = rememberVibratePermissionState(
         onGranted = {
@@ -59,7 +80,7 @@ fun MagnetometerScreen(
 
     // Animation for strong anomaly (pulse effect)
     val scale by animateFloatAsState(
-        targetValue = if (anomalyScore > 0.7f) 1.15f else 1f,
+        targetValue = if (anomalyScore > 0.7f) 1.25f else 1f,
         animationSpec = tween(800),
         label = "PulseAnimation"
     )
@@ -70,7 +91,7 @@ fun MagnetometerScreen(
                 title = { Text("EM Field Scanner") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -112,16 +133,19 @@ fun MagnetometerScreen(
 
                 Spacer(Modifier.height(32.dp))
 
-                // Using standard Material Icon instead of AsyncImage to avoid Coil dependency issues
-                Icon(
-                    imageVector = Icons.Default.ArrowBack, // Placeholder, usually a custom vector
+                // Use Coil to load assets from the assets folder
+                val assetPath = when {
+                    anomalyScore > 0.7f -> "file:///android_asset/warning_triangle.png"
+                    anomalyScore > 0.3f -> "file:///android_asset/caution_triangle.png"
+                    else -> "file:///android_asset/baseline_triangle.png"
+                }
+
+                AsyncImage(
+                    model = assetPath,
                     contentDescription = "Alert Status",
                     modifier = Modifier
-                        .size(160.dp)
-                        .scale(scale),
-                    tint = if (anomalyScore > 0.7f) MaterialTheme.colorScheme.error
-                    else if (anomalyScore > 0.3f) MaterialTheme.colorScheme.tertiary
-                    else MaterialTheme.colorScheme.primary
+                        .size(180.dp)
+                        .scale(scale)
                 )
 
                 Spacer(Modifier.height(16.dp))
