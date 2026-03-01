@@ -1,4 +1,4 @@
-// Root build.gradle.kts - Privacy Shield (single-module Android app)
+// Root build.gradle.kts - PrivatAid
 
 plugins {
     alias(libs.plugins.android.application) apply true
@@ -7,11 +7,13 @@ plugins {
 }
 
 android {
+    // Keep namespace the same to avoid breaking package references
     namespace = "com.pocketnarc.privacyshield"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.pocketnarc.privacyshield"
+        // Change applicationId for full system-level rebranding
+        applicationId = "com.privataid.app"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
@@ -52,13 +54,8 @@ dependencies {
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
-    // Material 3 via catalog
     implementation(libs.androidx.compose.material3)
-
-    // Android Material Components (for themes)
     implementation(libs.material)
-
-    // Core Compose stack via catalog
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -69,11 +66,9 @@ dependencies {
     // Image Loading
     implementation(libs.coil.compose)
 
-    // UI & debug via catalog bundles
     implementation(libs.bundles.compose.ui)
     debugImplementation(libs.bundles.compose.debug)
 
-    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.espresso.core)

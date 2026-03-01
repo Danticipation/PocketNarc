@@ -18,15 +18,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -161,17 +158,16 @@ fun MagnetometerScreen(
                     Text("INITIALIZE SENSORS")
                 }
             } else {
-                // INTEGRATED LOGO
+                // LOGO - COLOR RESTORED AND FULL OPACITY
                 AsyncImage(
                     model = "file:///android_asset/Logo_1.png",
                     contentDescription = "PrivatAid Logo",
                     modifier = Modifier
-                        .height(40.dp)
-                        .alpha(0.6f),
-                    colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
+                        .height(65.dp) // Slightly larger
+                        .padding(vertical = 12.dp)
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
 
                 Text(
                     text = "FIELD MAGNITUDE",
@@ -242,14 +238,13 @@ fun MagnetometerScreen(
 
                 Spacer(Modifier.height(24.dp))
 
-                // FIX FOR TEXT SHIFTING/WRAPPING
                 Text(
                     text = when {
                         anomalyScore > 0.7f -> "!! ANOMALY DETECTED !!"
                         anomalyScore > 0.3f -> "> ELEVATED LEVELS <"
                         else -> "SYSTEM_SECURE"
                     },
-                    style = MaterialTheme.typography.titleMedium, // Reduced from titleLarge
+                    style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                     color = statusColor.copy(alpha = flickerAlpha),
                     fontFamily = FontFamily.Monospace,
