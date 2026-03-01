@@ -19,15 +19,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -95,7 +99,6 @@ fun MagnetometerScreen(
 
     val infiniteTransition = rememberInfiniteTransition(label = "TechAnimations")
     
-    // Scale animation
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = if (anomalyScore > 0.7f) 1.15f else if (anomalyScore > 0.3f) 1.08f else 1f,
@@ -106,7 +109,6 @@ fun MagnetometerScreen(
         label = "PulseScale"
     )
 
-    // Flicker for strong anomalies
     val flickerAlpha by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = if (anomalyScore > 0.7f) 0.85f else 1f,
@@ -117,7 +119,6 @@ fun MagnetometerScreen(
         label = "Flicker"
     )
 
-    // Moving scanline
     val scanlineOffset by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -131,7 +132,7 @@ fun MagnetometerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("SENSOR_MAG_SCANNER", fontFamily = FontFamily.Monospace, fontSize = 18.sp) },
+                title = { Text("PRIVATAID_MAG_SCANNER", fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -151,17 +152,28 @@ fun MagnetometerScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+                .padding(horizontal = 24.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
             if (!allPermissionsGranted) {
-                // Permission UI
                 Spacer(Modifier.height(48.dp))
                 Button(onClick = { permissionState.launchMultiplePermissionRequest() }) {
                     Text("INITIALIZE SENSORS")
                 }
             } else {
+                // INTEGRATED LOGO
+                AsyncImage(
+                    model = "file:///android_asset/Logo_1.png",
+                    contentDescription = "PrivatAid Logo",
+                    modifier = Modifier
+                        .height(40.dp)
+                        .alpha(0.6f),
+                    colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
+                )
+
+                Spacer(Modifier.height(16.dp))
+
                 Text(
                     text = "FIELD MAGNITUDE",
                     style = MaterialTheme.typography.labelLarge,
@@ -182,14 +194,12 @@ fun MagnetometerScreen(
                     fontWeight = FontWeight.Bold
                 )
 
-                Spacer(Modifier.height(48.dp))
+                Spacer(Modifier.height(32.dp))
 
-                // The "Scanner" Container
                 Box(
                     modifier = Modifier
-                        .size(260.dp)
+                        .size(240.dp)
                         .drawBehind {
-                            // Radial Background Glow
                             drawCircle(
                                 brush = Brush.radialGradient(
                                     0f to statusColor.copy(alpha = 0.4f * (if(anomalyScore > 0.7f) flickerAlpha else 1f)),
@@ -198,7 +208,6 @@ fun MagnetometerScreen(
                                 radius = size.minDimension / 1.1f
                             )
                             
-                            // Moving Scanline Effect
                             val y = scanlineOffset * size.height
                             drawLine(
                                 color = statusColor.copy(alpha = 0.2f),
@@ -219,40 +228,37 @@ fun MagnetometerScreen(
                         model = assetPath,
                         contentDescription = "Status",
                         modifier = Modifier
-                            .size(220.dp)
+                            .size(200.dp)
                             .scale(pulseScale)
                             .clip(CircleShape)
                     )
                     
-                    // Technical outer rings
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .scale(pulseScale)
                             .border(1.dp, statusColor.copy(alpha = 0.15f), CircleShape)
                     )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize(0.85f)
-                            .border(0.5.dp, statusColor.copy(alpha = 0.1f), CircleShape)
-                    )
                 }
 
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(24.dp))
 
+                // FIX FOR TEXT SHIFTING/WRAPPING
                 Text(
                     text = when {
                         anomalyScore > 0.7f -> "!! ANOMALY DETECTED !!"
                         anomalyScore > 0.3f -> "> ELEVATED LEVELS <"
                         else -> "SYSTEM_SECURE"
                     },
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium, // Reduced from titleLarge
+                    textAlign = TextAlign.Center,
                     color = statusColor.copy(alpha = flickerAlpha),
                     fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Black
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(Modifier.height(56.dp))
+                Spacer(Modifier.height(40.dp))
 
                 if (isCalibrating) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -282,7 +288,7 @@ fun MagnetometerScreen(
                     }
                 }
                 
-                Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(32.dp))
             }
         }
     }
