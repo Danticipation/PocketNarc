@@ -1,10 +1,5 @@
 package com.pocketnarc.privacyshield.ui.screens.lens
 
-import android.content.Context
-import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.util.Log
 import android.util.Size
 import androidx.camera.core.*
@@ -39,6 +34,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import java.util.concurrent.Executors
+import kotlin.math.abs
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -47,71 +43,36 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraPermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
 
-    val vibrator = remember(context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-            vibratorManager.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        }
-    }
-
     var hasFlashlight by remember { mutableStateOf(false) }
     var isFlashOn by remember { mutableStateOf(false) }
     var cameraControl by remember { mutableStateOf<CameraControl?>(null) }
     
-    // Detection state
-    var detectedPoint by remember { mutableStateOf<Offset?>(null) }
-    var detectionIntensity by remember { mutableStateOf(0f) }
+    // Detection state with smoothing
+    var targetPoint by remember { mutableStateOf<Offset?>(null) }
+    var lastDetectedPoint by remember { mutableStateOf<Offset?>(null) }
+    var persistenceCount by remember { mutableIntStateOf(0) }
+    var displayIntensity by remember { mutableStateOf(0f) }
 
     val previewView = remember { PreviewView(context) }
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
 
-    // Pulsing animation for the crosshair
-    val infiniteTransition = rememberInfiniteTransition(label = "DetectionPulse")
-    val crosshairScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.4f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(600, easing = LinearOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "Pulse"
-    )
-
-    // Handle vibration on detection
-    LaunchedEffect(detectionIntensity > 0.9f) {
-        if (detectionIntensity > 0.9f) {
-            if (vibrator.hasVibrator()) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
-                } else {
-                    @Suppress("DEPRECATION")
-                    vibrator.vibrate(100)
-                }
-            }
-        }
-    }
+    // Smoothly animate the crosshair to the target
+    val animatedX by animateFloatAsState(targetValue = targetPoint?.x ?: 0.5f, label = "X")
+    val animatedY by animateFloatAsState(targetValue = targetPoint?.y ?: 0.5f, label = "Y")
 
     LaunchedEffect(cameraPermissionState.status.isGranted) {
         if (cameraPermissionState.status.isGranted) {
             val cameraProvider = cameraProviderFuture.get()
-            
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
+            val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
 
-            // Real-time Image Analysis
-            @Suppress("DEPRECATION")
             val imageAnalysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setTargetResolution(Size(640, 480))
                 .build()
 
             imageAnalysis.setAnalyzer(analysisExecutor) { imageProxy ->
-                val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+                val rotation = imageProxy.imageInfo.rotationDegrees
                 val buffer = imageProxy.planes[0].buffer
                 val data = ByteArray(buffer.remaining())
                 buffer.get(data)
@@ -119,62 +80,58 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
                 var maxLuma = 0
                 var maxPos = -1
                 var sumLuma = 0L
-                
                 for (i in data.indices) {
                     val luma = data[i].toInt() and 0xFF
                     sumLuma += luma
-                    if (luma > maxLuma) {
-                        maxLuma = luma
-                        maxPos = i
-                    }
+                    if (luma > maxLuma) { maxLuma = luma; maxPos = i }
                 }
-
                 val avgLuma = sumLuma / data.size
-                
-                // SPICED UP SENSITIVITY:
-                // Threshold lowered slightly to 250, contrast requirement reduced to 120.
-                if (maxLuma >= 250 && (maxLuma - avgLuma) > 120 && maxPos != -1) {
-                    val width = imageProxy.width
-                    val height = imageProxy.height
+
+                // DYNAMIC NOISE FILTER: In the dark (avg < 20), we need extreme peaks
+                val threshold = if (avgLuma < 20) 254 else 250
+                val contrastReq = if (avgLuma < 20) 180 else 120
+
+                if (maxLuma >= threshold && (maxLuma - avgLuma) > contrastReq) {
+                    val w = imageProxy.width; val h = imageProxy.height
+                    val rawX = (maxPos % w).toFloat() / w
+                    val rawY = (maxPos / w).toFloat() / h
                     
-                    val x = (maxPos % width).toFloat() / width
-                    val y = (maxPos / width).toFloat() / height
-                    
-                    val finalX = when (rotationDegrees) {
-                        90 -> y
-                        270 -> 1f - y
-                        180 -> 1f - x
-                        else -> x
+                    val curPoint = when (rotation) {
+                        90 -> Offset(rawY, 1f - rawX)
+                        270 -> Offset(1f - rawY, rawX)
+                        else -> Offset(rawX, rawY)
                     }
-                    val finalY = when (rotationDegrees) {
-                        90 -> 1f - x
-                        270 -> x
-                        180 -> 1f - y
-                        else -> y
+
+                    // PERSISTENCE CHECK: Glint must be stable within 5% area
+                    if (lastDetectedPoint != null && 
+                        abs(curPoint.x - lastDetectedPoint!!.x) < 0.05f && 
+                        abs(curPoint.y - lastDetectedPoint!!.y) < 0.05f) {
+                        persistenceCount++
+                    } else {
+                        persistenceCount = 0
                     }
-                    
-                    detectedPoint = Offset(finalX, finalY)
-                    detectionIntensity = 1f
+                    lastDetectedPoint = curPoint
+
+                    if (persistenceCount > 4) { // Requires 5 stable frames
+                        targetPoint = curPoint
+                        displayIntensity = 1f
+                    }
                 } else {
-                    detectionIntensity = (detectionIntensity - 0.15f).coerceAtLeast(0f)
-                    if (detectionIntensity == 0f) detectedPoint = null
+                    displayIntensity = (displayIntensity - 0.1f).coerceAtLeast(0f)
+                    if (displayIntensity <= 0f) {
+                        targetPoint = null
+                        persistenceCount = 0
+                    }
                 }
-                
                 imageProxy.close()
             }
 
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
             try {
                 cameraProvider.unbindAll()
-                val camera = cameraProvider.bindToLifecycle(
-                    lifecycleOwner, cameraSelector, preview, imageAnalysis
-                )
+                val camera = cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageAnalysis)
                 cameraControl = camera.cameraControl
                 hasFlashlight = camera.cameraInfo.hasFlashUnit()
-            } catch (e: Exception) {
-                Log.e("LensDetector", "Camera binding failed", e)
-            }
+            } catch (e: Exception) { Log.e("Lens", "Binding error", e) }
         }
     }
 
@@ -182,138 +139,41 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text("PRIVATAID_OPTIC_SCAN", fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color(0xFF00E676),
-                    navigationIconContentColor = Color.White
-                )
+                navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black, titleContentColor = Color(0xFF00E676), navigationIconContentColor = Color.White)
             )
         },
         containerColor = Color.Black
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (cameraPermissionState.status.isGranted) {
-                AndroidView(
-                    factory = { previewView },
-                    modifier = Modifier.fillMaxSize()
-                )
+                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                Box(modifier = Modifier.fillMaxSize().background(Color.Red.copy(alpha = 0.1f)))
 
-                // SPICED UP OVERLAY: Red filter to simulate specialized optic film
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Red.copy(alpha = 0.15f)) // Intense red tint
-                )
-
-                // Detection Overlay
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    detectedPoint?.let { point ->
-                        if (detectionIntensity > 0.1f) {
-                            val canvasX = point.x * size.width
-                            val canvasY = point.y * size.height
-                            
-                            drawCircle(
-                                color = Color.White.copy(alpha = detectionIntensity), // White circle for contrast
-                                radius = 30.dp.toPx() * crosshairScale,
-                                center = Offset(canvasX, canvasY),
-                                style = Stroke(width = 3.dp.toPx())
-                            )
-                            
-                            drawLine(
-                                color = Color.White.copy(alpha = detectionIntensity),
-                                start = Offset(canvasX - 20.dp.toPx(), canvasY),
-                                end = Offset(canvasX + 20.dp.toPx(), canvasY),
-                                strokeWidth = 2.dp.toPx()
-                            )
-                            drawLine(
-                                color = Color.White.copy(alpha = detectionIntensity),
-                                start = Offset(canvasX, canvasY - 20.dp.toPx()),
-                                end = Offset(canvasX, canvasY + 20.dp.toPx()),
-                                strokeWidth = 2.dp.toPx()
-                            )
-                        }
+                    if (displayIntensity > 0.1f) {
+                        drawCircle(Color.White.copy(alpha = displayIntensity), 35.dp.toPx(), Offset(animatedX * size.width, animatedY * size.height), style = Stroke(2.dp.toPx()))
+                        drawLine(Color.White.copy(alpha = displayIntensity), Offset(animatedX * size.width - 20.dp.toPx(), animatedY * size.height), Offset(animatedX * size.width + 20.dp.toPx(), animatedY * size.height), 1.dp.toPx())
+                        drawLine(Color.White.copy(alpha = displayIntensity), Offset(animatedX * size.width, animatedY * size.height - 20.dp.toPx()), Offset(animatedX * size.width, animatedY * size.height + 20.dp.toPx()), 1.dp.toPx())
                     }
                 }
 
-                // UI HUD
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Bottom
-                ) {
-                    if (detectionIntensity > 0.8f) {
-                        Surface(
-                            color = Color.White.copy(alpha = 0.9f),
-                            shape = MaterialTheme.shapes.small,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        ) {
-                            Text(
-                                "!! REFLECTION DETECTED !!",
-                                color = Color.Black,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Black
-                            )
+                Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+                    if (displayIntensity > 0.8f) {
+                        Surface(color = Color.White, shape = MaterialTheme.shapes.small, modifier = Modifier.padding(bottom = 16.dp)) {
+                            Text("!! OPTIC REFLECTION !!", color = Color.Black, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                         }
                     }
-
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.85f),
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "AI OPTIC SCANNER: ACTIVE\nSEEKING HIGH-CONTRAST GLINTS",
-                            modifier = Modifier.padding(16.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF00E676),
-                            fontFamily = FontFamily.Monospace,
-                            textAlign = TextAlign.Center
-                        )
+                    Surface(color = Color.Black.copy(alpha = 0.8f), shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+                        Text("ASSISTIVE SCANNER: ACTIVE\nSEEKING STABLE PINPOINT GLINTS", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelSmall, color = Color(0xFF00E676), fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center)
                     }
-
                     Spacer(Modifier.height(24.dp))
-
                     if (hasFlashlight) {
-                        FloatingActionButton(
-                            onClick = {
-                                isFlashOn = !isFlashOn
-                                cameraControl?.enableTorch(isFlashOn)
-                            },
-                            containerColor = if (isFlashOn) Color(0xFF00E676) else Color.DarkGray,
-                            contentColor = if (isFlashOn) Color.Black else Color.White,
-                            shape = CircleShape
-                        ) {
-                            Icon(
-                                imageVector = if (isFlashOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
-                                contentDescription = "Toggle Flashlight"
-                            )
+                        FloatingActionButton(onClick = { isFlashOn = !isFlashOn; cameraControl?.enableTorch(isFlashOn) }, containerColor = if (isFlashOn) Color(0xFF00E676) else Color.DarkGray, shape = CircleShape) {
+                            Icon(if (isFlashOn) Icons.Default.FlashOn else Icons.Default.FlashOff, "Flash")
                         }
                     }
-                    
                     Spacer(Modifier.height(32.dp))
-                }
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text("CAMERA ACCESS REQUIRED", color = Color.White, fontFamily = FontFamily.Monospace)
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = { cameraPermissionState.launchPermissionRequest() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676))
-                    ) {
-                        Text("GRANT ACCESS", color = Color.Black)
-                    }
                 }
             }
         }
