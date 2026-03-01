@@ -15,6 +15,7 @@ import com.pocketnarc.privacyshield.data.OnboardingRepository
 import com.pocketnarc.privacyshield.ui.screens.home.HomeScreen
 import com.pocketnarc.privacyshield.ui.screens.lens.LensDetectorScreen
 import com.pocketnarc.privacyshield.ui.screens.magnetometer.MagnetometerScreen
+import com.pocketnarc.privacyshield.ui.screens.network.NetworkScannerScreen
 import com.pocketnarc.privacyshield.ui.screens.onboarding.OnboardingScreen
 import kotlinx.coroutines.launch
 
@@ -75,7 +76,7 @@ fun PrivacyShieldNavHost(
         }
 
         composable(NavRoutes.NETWORK) {
-            Text("Network Scanner - Coming Soon")
+            NetworkScannerScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable(NavRoutes.AUDIO) {

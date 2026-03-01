@@ -3,12 +3,13 @@ package com.pocketnarc.privacyshield.ui.screens.lens
 import android.util.Log
 import android.util.Size
 import androidx.camera.core.*
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -66,9 +67,18 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
             val cameraProvider = cameraProviderFuture.get()
             val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
 
+            val resolutionSelector = ResolutionSelector.Builder()
+                .setResolutionStrategy(
+                    ResolutionStrategy(
+                        Size(640, 480),
+                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                    )
+                )
+                .build()
+
             val imageAnalysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setTargetResolution(Size(640, 480))
+                .setResolutionSelector(resolutionSelector)
                 .build()
 
             imageAnalysis.setAnalyzer(analysisExecutor) { imageProxy ->
@@ -87,7 +97,6 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
                 }
                 val avgLuma = sumLuma / data.size
 
-                // DYNAMIC NOISE FILTER: In the dark (avg < 20), we need extreme peaks
                 val threshold = if (avgLuma < 20) 254 else 250
                 val contrastReq = if (avgLuma < 20) 180 else 120
 
@@ -102,7 +111,6 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
                         else -> Offset(rawX, rawY)
                     }
 
-                    // PERSISTENCE CHECK: Glint must be stable within 5% area
                     if (lastDetectedPoint != null && 
                         abs(curPoint.x - lastDetectedPoint!!.x) < 0.05f && 
                         abs(curPoint.y - lastDetectedPoint!!.y) < 0.05f) {
@@ -112,7 +120,7 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
                     }
                     lastDetectedPoint = curPoint
 
-                    if (persistenceCount > 4) { // Requires 5 stable frames
+                    if (persistenceCount > 4) {
                         targetPoint = curPoint
                         displayIntensity = 1f
                     }

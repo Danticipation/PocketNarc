@@ -3,10 +3,12 @@ package com.pocketnarc.privacyshield.ui.screens.network
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -32,6 +34,7 @@ fun NetworkScannerScreen(onNavigateBack: () -> Unit) {
     val devices by viewModel.devices.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val scanProgress by viewModel.scanProgress.collectAsState()
+    val deepScanResults by viewModel.deepScanResults.collectAsState()
 
     Scaffold(
         topBar = {
@@ -117,7 +120,11 @@ fun NetworkScannerScreen(onNavigateBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(devices) { device ->
-                        DeviceCard(device)
+                        ForensicDeviceCard(
+                            device = device,
+                            deepScanResult = deepScanResults[device.ip],
+                            onStartDeepScan = { viewModel.startDeepScan(device.ip) }
+                        )
                     }
                 }
             }
@@ -147,66 +154,213 @@ fun NetworkScannerScreen(onNavigateBack: () -> Unit) {
 }
 
 @Composable
-fun DeviceCard(device: NetworkDevice) {
+fun ForensicDeviceCard(
+    device: NetworkDevice,
+    deepScanResult: DeepScanResult?,
+    onStartDeepScan: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    
     val icon = when (device.type) {
         DeviceType.CAMERA -> Icons.Default.Videocam
         DeviceType.SMART_HOME -> Icons.Default.Router
         DeviceType.MOBILE -> Icons.Default.Smartphone
         DeviceType.COMPUTER -> Icons.Default.Computer
+        DeviceType.ROUTER -> Icons.Default.SettingsEthernet
         else -> Icons.Default.Devices
     }
 
-    val color = if (device.type == DeviceType.CAMERA) Color.Red else Color(0xFF00E676)
+    val color = when (device.type) {
+        DeviceType.CAMERA -> Color(0xFFFF5252)
+        DeviceType.ROUTER -> Color(0xFF448AFF)
+        else -> Color(0xFF00E676)
+    }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded },
         colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (device.type == DeviceType.CAMERA) Color.Red.copy(alpha = 0.5f) else Color.DarkGray)
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp, 
+            if (device.type == DeviceType.CAMERA) Color.Red.copy(alpha = 0.5f) else Color.DarkGray
+        )
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(Modifier.width(16.dp))
-            Column {
-                Text(
-                    text = device.hostname,
-                    color = Color.White,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(32.dp)
                 )
-                Text(
-                    text = "IP: ${device.ip}",
-                    color = Color.Gray,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace
-                )
-                if (device.ports.isNotEmpty()) {
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "OPEN_PORTS: ${device.ports.joinToString(", ")}",
-                        color = color.copy(alpha = 0.7f),
-                        style = MaterialTheme.typography.labelSmall,
+                        text = device.hostname,
+                        color = Color.White,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "IP: ${device.ip}",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace
                     )
                 }
-            }
-            
-            if (device.type == DeviceType.CAMERA) {
-                Spacer(Modifier.weight(1f))
+                
+                if (device.type == DeviceType.CAMERA) {
+                    Badge(containerColor = Color.Red, contentColor = Color.White) {
+                        Text("THREAT", modifier = Modifier.padding(horizontal = 4.dp))
+                    }
+                }
+                
                 Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = "Threat Detected",
-                    tint = Color.Red,
-                    modifier = Modifier.size(20.dp)
+                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = Color.DarkGray
                 )
             }
+
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.padding(top = 16.dp)) {
+                    HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(bottom = 12.dp))
+                    
+                    ForensicRow("TYPE", device.type.name)
+                    if (device.manufacturer != null) {
+                        ForensicRow("VEND", device.manufacturer)
+                    }
+                    
+                    if (device.ports.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "OPEN_PORTS:",
+                            color = Color.White,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        device.ports.forEach { port ->
+                            PortDetail(port)
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    
+                    // Vulnerability Scan Section
+                    Surface(
+                        color = Color.Black,
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.fillMaxWidth().border(1.dp, Color.DarkGray, RoundedCornerShape(4.dp))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "VULNERABILITY_REPORT",
+                                    color = Color(0xFF00E676),
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                
+                                if (deepScanResult?.isScanning == true) {
+                                    CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Color(0xFF00E676), strokeWidth = 1.dp)
+                                } else {
+                                    Text(
+                                        "RUN SCAN",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.clickable { onStartDeepScan() }
+                                    )
+                                }
+                            }
+                            
+                            if (deepScanResult != null && deepScanResult.details.isNotEmpty()) {
+                                Spacer(Modifier.height(8.dp))
+                                deepScanResult.details.forEach { detail ->
+                                    Text(
+                                        text = "> $detail",
+                                        color = if (detail.contains("OPEN")) Color.Yellow else Color.Gray,
+                                        fontSize = 10.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.padding(vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (device.type == DeviceType.CAMERA) {
+                        Spacer(Modifier.height(12.dp))
+                        Surface(
+                            color = Color.Red.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "WARNING: Potential surveillance device identified. High risk of unauthorized data transmission.",
+                                color = Color.Red,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+fun ForensicRow(label: String, value: String) {
+    Row(modifier = Modifier.padding(vertical = 2.dp)) {
+        Text(
+            text = "$label: ",
+            color = Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp
+        )
+        Text(
+            text = value,
+            color = Color.White,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
+fun PortDetail(port: Int) {
+    val description = when (port) {
+        80 -> "HTTP (Web Server)"
+        443 -> "HTTPS (Secure Web)"
+        554 -> "RTSP (Streaming - CAMERA)"
+        1935 -> "RTMP (Streaming - CAMERA)"
+        8000 -> "ONVIF/Common Cam"
+        8080 -> "HTTP Alt"
+        37777 -> "Dahua/Lorex Default"
+        else -> "General Service"
+    }
+    
+    Row(
+        modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Adjust, null, tint = Color(0xFF00E676), modifier = Modifier.size(8.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = "$port - $description",
+            color = if (port in listOf(554, 1935, 8000, 37777)) Color(0xFFFF5252) else Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 11.sp
+        )
     }
 }
