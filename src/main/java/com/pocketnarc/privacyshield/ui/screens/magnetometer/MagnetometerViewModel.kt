@@ -37,10 +37,11 @@ class MagnetometerViewModel(
     private val _calibrationProgress = MutableStateFlow(0f) // 0-1
     val calibrationProgress: StateFlow<Float> = _calibrationProgress.asStateFlow()
 
-    // Configurable constants (tune these)
-    private val filterAlpha = 0.92f           // IIR smoothing factor
-    private val calibrationSampleCount = 100  // ~5-8 seconds at UI delay
-    private val alertThreshold = 3.5f         // z-score for vibration/alert
+    // Configurable constants - TUNDED FOR HIGHER SENSITIVITY
+    private val filterAlpha = 0.92f           
+    private val calibrationSampleCount = 100  
+    private val alertThreshold = 1.2f         // Lowered from 3.5 for much faster response
+    private val sensitivityFactor = 0.08f     // Lowered from 0.12 for tighter deviation check
 
     private var smoothedMagnitude = 0f
     private val calibrationSamples = mutableListOf<Float>()
@@ -79,7 +80,7 @@ class MagnetometerViewModel(
         // Raw magnitude
         val rawMagnitude = sqrt(x*x + y*y + z*z)
 
-        // IIR low-pass filter (initializes to first reading)
+        // IIR low-pass filter
         if (smoothedMagnitude == 0f) {
             smoothedMagnitude = rawMagnitude
         } else {
@@ -88,12 +89,10 @@ class MagnetometerViewModel(
         _filteredMagnitude.value = smoothedMagnitude
 
         if (_isCalibrating.value) {
-            // Simplified collection: just add samples until we hit the count
             calibrationSamples.add(smoothedMagnitude)
             _calibrationProgress.value = (calibrationSamples.size.toFloat() / calibrationSampleCount).coerceIn(0f, 1f)
 
             if (calibrationSamples.size >= calibrationSampleCount) {
-                // Final baseline = trimmed mean (remove top/bottom 10% to handle spikes)
                 calibrationSamples.sort()
                 val trim = calibrationSamples.size / 10
                 val trimmedList = calibrationSamples.subList(trim, calibrationSamples.size - trim)
@@ -104,10 +103,12 @@ class MagnetometerViewModel(
             val baseline = _calibratedBaseline.value
             if (baseline > 0f) {
                 val deviation = smoothedMagnitude - baseline
-                // Anomaly detection: focus on positive deviation (added field)
-                val zScore = deviation / (baseline * 0.12f) 
-                _anomalyScore.value = (zScore / alertThreshold).coerceIn(0f, 1f)
+                
+                // Increased sensitivity calculation
+                val zScore = deviation / (baseline * sensitivityFactor) 
+                _anomalyScore.value = (zScore / 3.0f).coerceIn(0f, 1f) // Scale for UI color/animation
 
+                // Trigger vibration if zScore passes the threshold (now much lower)
                 if (zScore > alertThreshold) {
                     triggerAlert()
                 }
@@ -115,13 +116,18 @@ class MagnetometerViewModel(
         }
     }
 
+    private var lastAlertTime = 0L
     private fun triggerAlert() {
+        val now = System.currentTimeMillis()
+        if (now - lastAlertTime < 400) return // Throttling vibration
+        
         if (vibrator.hasVibrator()) {
+            lastAlertTime = now
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator.vibrate(VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(200)
+                vibrator.vibrate(150)
             }
         }
     }
