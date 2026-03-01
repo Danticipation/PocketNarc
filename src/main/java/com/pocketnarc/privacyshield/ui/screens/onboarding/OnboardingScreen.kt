@@ -1,40 +1,24 @@
 package com.pocketnarc.privacyshield.ui.screens.onboarding
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.pocketnarc.privacyshield.R
 import com.pocketnarc.privacyshield.data.OnboardingRepository
 import kotlinx.coroutines.launch
-
-// No 'const' - multi-line trimmed string is runtime value
-val DISCLAIMER_TEXT = """
-This application uses phone sensors to assist in screening for potential surveillance devices. It cannot detect all threats, especially passive or unpowered ones.
-
-For critical situations, consult professional equipment and services.
-
-This is an assistive screening tool only—not a guaranteed professional-grade detector.
-""".trimIndent()
 
 @Composable
 fun OnboardingScreen(
@@ -42,55 +26,80 @@ fun OnboardingScreen(
     onComplete: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
-
-    var acknowledged by remember { mutableStateOf(false) }
-    val scrollState = rememberScrollState()
+    var checked by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
-            .verticalScroll(scrollState),
-        verticalArrangement = Arrangement.SpaceBetween
+            .background(Color.Black)
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Column {
-            Text(
-                text = "Privacy Shield",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Important Notice",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+        AsyncImage(
+            model = "file:///android_asset/Logo_1.png",
+            contentDescription = "PrivatAid Logo",
+            modifier = Modifier.size(120.dp)
+        )
 
-            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Spacer(Modifier.height(24.dp))
+
+        Text(
+            text = "PrivatAid",
+            style = MaterialTheme.typography.displayMedium,
+            color = Color.White,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(Modifier.height(32.dp))
+
+        Surface(
+            color = Color(0xFF1A1A1A),
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = DISCLAIMER_TEXT,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(16.dp)
+                    text = stringResource(R.string.disclaimer_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.disclaimer_text),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.LightGray,
+                    lineHeight = 20.sp
                 )
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Checkbox(
-                        checked = acknowledged,
-                        onCheckedChange = { acknowledged = it }
-                    )
-                    Text(
-                        text = "I understand the limitations and agree to use this as an assistive tool only",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-            }
         }
+
+        Spacer(Modifier.height(24.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = { checked = it },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = Color(0xFF00E676),
+                    uncheckedColor = Color.Gray
+                )
+            )
+            Text(
+                text = stringResource(R.string.disclaimer_acknowledge),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.LightGray,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+
+        Spacer(Modifier.height(32.dp))
 
         Button(
             onClick = {
@@ -99,12 +108,19 @@ fun OnboardingScreen(
                     onComplete()
                 }
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 24.dp),
-            enabled = acknowledged
+            enabled = checked,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF00E676),
+                disabledContainerColor = Color.DarkGray
+            ),
+            shape = MaterialTheme.shapes.medium
         ) {
-            Text("Continue")
+            Text(
+                text = stringResource(R.string.btn_continue),
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
         }
     }
 }
