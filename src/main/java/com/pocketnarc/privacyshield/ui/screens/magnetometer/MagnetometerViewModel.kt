@@ -37,11 +37,11 @@ class MagnetometerViewModel(
     private val _calibrationProgress = MutableStateFlow(0f) // 0-1
     val calibrationProgress: StateFlow<Float> = _calibrationProgress.asStateFlow()
 
-    // Configurable constants - TUNDED FOR HIGHER SENSITIVITY
+    // Configurable constants
     private val filterAlpha = 0.92f           
     private val calibrationSampleCount = 100  
-    private val alertThreshold = 1.2f         // Lowered from 3.5 for much faster response
-    private val sensitivityFactor = 0.08f     // Lowered from 0.12 for tighter deviation check
+    private val alertThreshold = 1.2f         
+    private val sensitivityFactor = 0.08f     
 
     private var smoothedMagnitude = 0f
     private val calibrationSamples = mutableListOf<Float>()
@@ -104,30 +104,36 @@ class MagnetometerViewModel(
             if (baseline > 0f) {
                 val deviation = smoothedMagnitude - baseline
                 
-                // Increased sensitivity calculation
                 val zScore = deviation / (baseline * sensitivityFactor) 
-                _anomalyScore.value = (zScore / 3.0f).coerceIn(0f, 1f) // Scale for UI color/animation
+                val score = (zScore / 3.0f).coerceIn(0f, 1f)
+                _anomalyScore.value = score
 
-                // Trigger vibration if zScore passes the threshold (now much lower)
                 if (zScore > alertThreshold) {
-                    triggerAlert()
+                    triggerAlert(score)
                 }
             }
         }
     }
 
     private var lastAlertTime = 0L
-    private fun triggerAlert() {
+    private fun triggerAlert(score: Float) {
         val now = System.currentTimeMillis()
-        if (now - lastAlertTime < 400) return // Throttling vibration
+        
+        // Dynamic pulse speed based on score (threat level)
+        // Strong Anomaly (>0.7) = 150ms throttle (fast buzz)
+        // Elevated Levels (>0.3) = 600ms throttle (slow thump)
+        val throttle = if (score > 0.7f) 150L else 600L
+        
+        if (now - lastAlertTime < throttle) return
         
         if (vibrator.hasVibrator()) {
             lastAlertTime = now
+            val duration = if (score > 0.7f) 100L else 200L
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(150)
+                vibrator.vibrate(duration)
             }
         }
     }
