@@ -7,7 +7,6 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
