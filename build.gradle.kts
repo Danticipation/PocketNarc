@@ -55,9 +55,11 @@ dependencies {
     androidTestImplementation(composeBom)
 
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.material)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
@@ -65,6 +67,9 @@ dependencies {
     
     // Image Loading
     implementation(libs.coil.compose)
+
+    // CameraX
+    implementation(libs.bundles.camerax)
 
     implementation(libs.bundles.compose.ui)
     debugImplementation(libs.bundles.compose.debug)

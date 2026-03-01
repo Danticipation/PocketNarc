@@ -15,15 +15,18 @@ espressoCore = "3.6.1"
 composeUiTestJunit4 = "1.7.0"
 material = "1.12.0"
 coil = "2.7.0"
+camerax = "1.4.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycleRuntimeKtx" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
 accompanist-permissions = { module = "com.google.accompanist:accompanist-permissions", version.ref = "accompanistPermissions" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-test-junit = { module = "androidx.test.ext:junit", version.ref = "junitExt" }
 androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espressoCore" }
@@ -37,9 +40,16 @@ androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 
+# CameraX
+androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+
 [bundles]
 compose-ui = ["androidx-compose-ui", "androidx-compose-ui-graphics", "androidx-compose-ui-tooling-preview"]
 compose-debug = ["androidx-compose-ui-tooling", "androidx-compose-ui-test-manifest"]
+camerax = ["androidx-camera-core", "androidx-camera-camera2", "androidx-camera-lifecycle", "androidx-camera-view"]
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

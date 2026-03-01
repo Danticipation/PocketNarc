@@ -13,6 +13,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.pocketnarc.privacyshield.data.OnboardingRepository
 import com.pocketnarc.privacyshield.ui.screens.home.HomeScreen
+import com.pocketnarc.privacyshield.ui.screens.lens.LensDetectorScreen
 import com.pocketnarc.privacyshield.ui.screens.magnetometer.MagnetometerScreen
 import com.pocketnarc.privacyshield.ui.screens.onboarding.OnboardingScreen
 import kotlinx.coroutines.launch
@@ -70,7 +71,7 @@ fun PrivacyShieldNavHost(
         }
 
         composable(NavRoutes.LENS) {
-            Text("Lens Detector - Coming Soon")
+            LensDetectorScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable(NavRoutes.NETWORK) {
