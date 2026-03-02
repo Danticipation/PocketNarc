@@ -1,23 +1,36 @@
 package com.pocketnarc.privacyshield.ui.screens.home
 
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 
-data class ScanOption(
+data class ForensicTool(
     val title: String,
     val subtitle: String,
+    val icon: ImageVector,
+    val route: String,
     val onClick: () -> Unit
 )
 
@@ -32,13 +45,13 @@ fun HomeScreen(
     onNavigateToIntegrity: () -> Unit,
     onNavigateToBluetooth: () -> Unit
 ) {
-    val scanOptions = listOf(
-        ScanOption("EM Field Scanner", "Magnetometer-based detection", onNavigateToMagnetometer),
-        ScanOption("Lens Reflection", "Camera + flashlight detection", onNavigateToLensDetector),
-        ScanOption("Network Scanner", "Wi-Fi & Forensic Analysis", onNavigateToNetworkScanner),
-        ScanOption("Bluetooth Hunt", "BLE Tracker & Beacon discovery", onNavigateToBluetooth),
-        ScanOption("Audio Monitor", "Ultrasonic & dB Analysis", onNavigateToAudioMonitor),
-        ScanOption("System Integrity", "Root & ADB security audit", onNavigateToIntegrity)
+    val tools = listOf(
+        ForensicTool("Magnetic Field Detector", "Ferrous & Electronic Anomalies", Icons.Default.Waves, "magnetometer", onNavigateToMagnetometer),
+        ForensicTool("Lens Reflection Scanner", "Guided Manual Optical Sweep", Icons.Default.Camera, "lens", onNavigateToLensDetector),
+        ForensicTool("Network Device Discovery", "Proactive UPnP/mDNS Scan", Icons.Default.Dns, "network", onNavigateToNetworkScanner),
+        ForensicTool("Bluetooth & AirTag Tracker", "Proximity Beacon Analysis", Icons.Default.Radar, "bluetooth", onNavigateToBluetooth),
+        ForensicTool("Ultrasonic & Audio Analyzer", "High-Frequency Burst Detection", Icons.Default.GraphicEq, "audio", onNavigateToAudioMonitor),
+        ForensicTool("Device Security Audit", "Kernel & Play Integrity Check", Icons.Default.Security, "integrity", onNavigateToIntegrity)
     )
 
     Scaffold(
@@ -46,11 +59,14 @@ fun HomeScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        AsyncImage(
-                            model = "file:///android_asset/Logo_1.png",
-                            contentDescription = "Logo",
-                            modifier = Modifier.size(32.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(Color(0xFF00E676), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("P", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        }
                         Spacer(Modifier.width(12.dp))
                         Text(
                             "PrivatAid", 
@@ -66,7 +82,19 @@ fun HomeScreen(
                 )
             )
         },
-        containerColor = Color.Black
+        containerColor = Color.Black,
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { /* Global Scan Logic */ },
+                containerColor = Color(0xFF00E676),
+                contentColor = Color.Black,
+                shape = CircleShape
+            ) {
+                Icon(Icons.Default.Shield, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("SCAN ALL", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            }
+        }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -75,40 +103,114 @@ fun HomeScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp)
         ) {
-            Spacer(Modifier.height(16.dp))
+            Text(
+                "FORENSIC_SUITE_ACTIVE",
+                color = Color(0xFF00E676),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
             
             LazyVerticalGrid(
-                columns = GridCells.Fixed(1),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                items(scanOptions) { option ->
-                    Card(
-                        onClick = option.onClick,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                        shape = MaterialTheme.shapes.medium,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.DarkGray)
-                    ) {
-                        Column(modifier = Modifier.padding(24.dp)) {
-                            Text(
-                                text = option.title,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                fontFamily = FontFamily.Monospace
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = option.subtitle,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.Gray,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
+                items(tools) { tool ->
+                    ForensicToolCard(tool)
                 }
+            }
+            
+            Spacer(Modifier.height(16.dp))
+            
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "No data leaves your device • Sensor-based detection only",
+                    color = Color.DarkGray,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    "v1.0.4 Forensic Build",
+                    color = Color.DarkGray,
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ForensicToolCard(tool: ForensicTool) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000),
+            repeatMode = RepeatType.Reverse
+        ),
+        label = "alpha"
+    )
+
+    Card(
+        onClick = tool.onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(160.dp)
+            .border(1.dp, Color.DarkGray.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A)),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Icon(
+                    imageVector = tool.icon,
+                    contentDescription = null,
+                    tint = Color(0xFF00E676),
+                    modifier = Modifier.size(28.dp)
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(Color(0xFF00E676).copy(alpha = alpha), CircleShape)
+                )
+            }
+            
+            Column {
+                Text(
+                    text = tool.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontFamily = FontFamily.Monospace,
+                    lineHeight = 16.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = tool.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    lineHeight = 12.sp
+                )
             }
         }
     }
