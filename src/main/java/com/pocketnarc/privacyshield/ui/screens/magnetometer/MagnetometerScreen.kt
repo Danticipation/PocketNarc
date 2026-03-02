@@ -1,289 +1,259 @@
 package com.pocketnarc.privacyshield.ui.screens.magnetometer
 
-import android.content.Context
-import android.hardware.SensorManager
-import android.os.Build
-import android.os.Vibrator
-import android.os.VibratorManager
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.*
+import androidx.compose.animation.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.pocketnarc.privacyshield.utils.rememberVibratePermissionState
+import com.pocketnarc.privacyshield.ui.screens.lens.ForensicBullet
+import java.text.SimpleDateFormat
+import java.util.*
+import kotlin.math.abs
 
-@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MagnetometerScreen(
-    onNavigateBack: () -> Unit,
-) {
+fun MagnetometerScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
-    val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    
-    val vibrator = remember(context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val sensorManager = remember { context.getSystemService(android.content.Context.SENSOR_SERVICE) as android.hardware.SensorManager }
+    val vibrator = remember { 
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
             vibratorManager.defaultVibrator
         } else {
             @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
         }
     }
-
-    val viewModel: MagnetometerViewModel = viewModel(
-        factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return MagnetometerViewModel(sensorManager, vibrator) as T
-            }
-        }
-    )
-
-    val lifecycleOwner = LocalLifecycleOwner.current
+    
+    val viewModel: MagnetometerViewModel = viewModel(factory = MagnetometerViewModelFactory(sensorManager, vibrator))
+    
     DisposableEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.addObserver(viewModel)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(viewModel)
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(viewModel) }
     }
 
-    val permissionState = rememberVibratePermissionState()
-    val allPermissionsGranted = permissionState.permissions.all { it.status.isGranted }
-
-    val anomalyScore by viewModel.anomalyScore.collectAsState()
-    val magnitude by viewModel.filteredMagnitude.collectAsState()
-    val baseline by viewModel.calibratedBaseline.collectAsState()
+    val status by viewModel.status.collectAsState()
+    val deviation by viewModel.deviation.collectAsState()
     val isCalibrating by viewModel.isCalibrating.collectAsState()
-    val calibrationProgress by viewModel.calibrationProgress.collectAsState()
-
-    val statusColor by animateColorAsState(
-        targetValue = when {
-            anomalyScore > 0.7f -> Color(0xFFFF3333)
-            anomalyScore > 0.3f -> Color(0xFFFFBB33)
-            else -> Color(0xFF00E676)
-        },
-        animationSpec = tween(400),
-        label = "StatusColor"
-    )
-
-    val infiniteTransition = rememberInfiniteTransition(label = "TechAnimations")
+    val progress by viewModel.calibrationProgress.collectAsState()
+    val sensitivity by viewModel.sensitivity.collectAsState()
+    val history by viewModel.anomalyHistory.collectAsState()
     
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = if (anomalyScore > 0.7f) 1.15f else if (anomalyScore > 0.3f) 1.08f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(if (anomalyScore > 0.7f) 350 else 800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "PulseScale"
-    )
-
-    val flickerAlpha by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = if (anomalyScore > 0.7f) 0.85f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(50, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "Flicker"
-    )
-
-    val scanlineOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "Scanline"
-    )
+    var showInstructions by remember { mutableStateOf(true) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("PRIVATAID_MAG_SCANNER", fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+                title = { Text("MAGNETIC_ANOMALY_SCANNER", fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
+                navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Black,
-                    titleContentColor = statusColor,
+                    titleContentColor = Color(0xFF00E676),
                     navigationIconContentColor = Color.White
                 )
             )
         },
         containerColor = Color.Black
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Top
-        ) {
-            if (!allPermissionsGranted) {
-                Spacer(Modifier.height(48.dp))
-                Button(onClick = { permissionState.launchMultiplePermissionRequest() }) {
-                    Text("INITIALIZE SENSORS")
-                }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (showInstructions) {
+                MagneticInstructions(onStart = { 
+                    showInstructions = false
+                    viewModel.startCalibration()
+                })
             } else {
-                // LOGO - COLOR RESTORED AND FULL OPACITY
-                AsyncImage(
-                    model = "file:///android_asset/Logo_1.png",
-                    contentDescription = "PrivatAid Logo",
-                    modifier = Modifier
-                        .height(65.dp) // Slightly larger
-                        .padding(vertical = 12.dp)
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                Text(
-                    text = "FIELD MAGNITUDE",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.Gray,
-                    fontFamily = FontFamily.Monospace
-                )
-                Text(
-                    text = "${"%.1f".format(magnitude)} μT",
-                    style = MaterialTheme.typography.displayMedium,
-                    color = Color.White,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                Text(
-                    text = "BASELINE: ${"%.1f".format(baseline)} μT",
-                    color = statusColor.copy(alpha = flickerAlpha),
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(Modifier.height(32.dp))
-
-                Box(
-                    modifier = Modifier
-                        .size(240.dp)
-                        .drawBehind {
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    0f to statusColor.copy(alpha = 0.4f * (if(anomalyScore > 0.7f) flickerAlpha else 1f)),
-                                    0.8f to Color.Transparent
-                                ),
-                                radius = size.minDimension / 1.1f
-                            )
-                            
-                            val y = scanlineOffset * size.height
-                            drawLine(
-                                color = statusColor.copy(alpha = 0.2f),
-                                start = Offset(0f, y),
-                                end = Offset(size.width, y),
-                                strokeWidth = 2.dp.toPx()
-                            )
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    val assetPath = when {
-                        anomalyScore > 0.7f -> "file:///android_asset/warning_triangle.png"
-                        anomalyScore > 0.3f -> "file:///android_asset/caution_triangle.png"
-                        else -> "file:///android_asset/baseline_triangle.png"
-                    }
-
-                    AsyncImage(
-                        model = assetPath,
-                        contentDescription = "Status",
-                        modifier = Modifier
-                            .size(200.dp)
-                            .scale(pulseScale)
-                            .clip(CircleShape)
-                    )
+                Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .scale(pulseScale)
-                            .border(1.dp, statusColor.copy(alpha = 0.15f), CircleShape)
-                    )
-                }
-
-                Spacer(Modifier.height(24.dp))
-
-                Text(
-                    text = when {
-                        anomalyScore > 0.7f -> "!! ANOMALY DETECTED !!"
-                        anomalyScore > 0.3f -> "> ELEVATED LEVELS <"
-                        else -> "SYSTEM_SECURE"
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
-                    color = statusColor.copy(alpha = flickerAlpha),
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Black,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(40.dp))
-
-                if (isCalibrating) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        LinearProgressIndicator(
-                            progress = { calibrationProgress },
-                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
-                            color = statusColor,
-                            trackColor = Color.DarkGray
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "CALIBRATING SENSORS...", 
-                            color = Color.LightGray, 
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp
-                        )
+                    Surface(
+                        color = Color(0xFF1A1A1A),
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth().border(1.dp, Color.DarkGray, MaterialTheme.shapes.medium)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                val statusColor = when(status) {
+                                    MagneticStatus.STABLE -> Color(0xFF00E676)
+                                    MagneticStatus.ELEVATED -> Color.Yellow
+                                    MagneticStatus.ANOMALY -> Color.Red
+                                    MagneticStatus.INTERFERENCE -> Color.Blue
+                                }
+                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(statusColor))
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = if (isCalibrating) "CALIBRATING_BASELINE..." else if (status == MagneticStatus.INTERFERENCE) "SIGNAL_INTERFERENCE" else status.name,
+                                    color = if (status == MagneticStatus.INTERFERENCE) Color.Blue else Color.White,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            
+                            if (isCalibrating) {
+                                Spacer(Modifier.height(12.dp))
+                                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(2.dp).clip(CircleShape), color = Color.Yellow, trackColor = Color.DarkGray)
+                            } else {
+                                Spacer(Modifier.height(16.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    ForensicMetric("STABLE_DEV", "${deviation.toInt()} μT")
+                                    ForensicMetric("SENSITIVITY", sensitivity.name)
+                                }
+                            }
+                        }
                     }
-                } else {
-                    OutlinedButton(
+
+                    Spacer(Modifier.height(32.dp))
+
+                    Box(modifier = Modifier.size(160.dp), contentAlignment = Alignment.Center) {
+                        AnomalyGauge(deviation, status)
+                    }
+
+                    Spacer(Modifier.height(32.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF1A1A1A)).padding(4.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        SensitivityLevel.values().forEach { level ->
+                            val isSelected = sensitivity == level
+                            TextButton(
+                                onClick = { viewModel.setSensitivity(level) },
+                                modifier = Modifier.weight(1f).background(if (isSelected) Color(0xFF00E676) else Color.Transparent, RoundedCornerShape(4.dp)),
+                                colors = ButtonDefaults.textButtonColors(contentColor = if (isSelected) Color.Black else Color.Gray)
+                            ) {
+                                Text(level.name, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+
+                    // Anomaly Log with Clear Button
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("FORENSIC_LOG", color = Color.DarkGray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        if (history.isNotEmpty()) {
+                            TextButton(onClick = { viewModel.clearLogs() }, contentPadding = PaddingValues(0.dp)) {
+                                Text("CLEAR_LOG", color = Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    
+                    LazyColumn(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(history) { log ->
+                            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(if (log.status == MagneticStatus.ANOMALY) Color.Red else Color.Yellow))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(log.time)), color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                                }
+                                Text("> ${log.magnitude} μT SHIFT", color = if (log.status == MagneticStatus.ANOMALY) Color.Red else Color.Yellow, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Button(
                         onClick = { viewModel.startCalibration() },
+                        enabled = !isCalibrating,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = statusColor),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, statusColor.copy(alpha = 0.5f)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
                         shape = MaterialTheme.shapes.medium
                     ) {
-                        Text("RE-CALIBRATE SYSTEM", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                        Text("RE-CALIBRATE BASELINE", color = Color.Black, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                     }
                 }
-                
-                Spacer(Modifier.height(32.dp))
             }
+        }
+    }
+}
+
+@Composable
+fun AnomalyGauge(deviation: Float, status: MagneticStatus) {
+    val color = when(status) {
+        MagneticStatus.STABLE -> Color(0xFF00E676)
+        MagneticStatus.ELEVATED -> Color.Yellow
+        MagneticStatus.ANOMALY -> Color.Red
+        MagneticStatus.INTERFERENCE -> Color.Blue
+    }
+    
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val radius = size.minDimension / 2
+        drawCircle(color = Color.DarkGray, radius = radius, style = Stroke(1.dp.toPx()))
+        val normalizedPulse = (abs(deviation).coerceIn(0f, 150f) / 150f)
+        val pulseRadius = (radius * normalizedPulse).coerceAtLeast(10f)
+        drawCircle(color = color.copy(alpha = 0.2f), radius = pulseRadius)
+        drawCircle(color = color, radius = pulseRadius, style = Stroke(2.dp.toPx()))
+    }
+}
+
+@Composable
+fun ForensicMetric(label: String, value: String) {
+    Column {
+        Text(label, color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        Text(value, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+    }
+}
+
+@Composable
+fun MagneticInstructions(onStart: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(32.dp).background(Color.Black),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Waves, contentDescription = null, tint = Color(0xFF00E676), modifier = Modifier.size(64.dp))
+        Spacer(Modifier.height(24.dp))
+        Text(
+            "MAGNETIC_ANOMALY_SCAN",
+            color = Color.White,
+            fontFamily = FontFamily.Monospace,
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(16.dp))
+        ForensicBullet("CALIBRATION", "Hold phone in open air away from metal during init.")
+        ForensicBullet("SLOW_SWEEP", "Move phone 5-15cm over surfaces slowly.")
+        ForensicBullet("CROSS_CHECK", "Combine with Bluetooth scanner for active transmitters.")
+        ForensicBullet("LIMITATION", "Will flag outlets, speakers, and wall studs.")
+        
+        Spacer(Modifier.height(48.dp))
+        
+        Button(
+            onClick = onStart,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Text("INITIALIZE SCANNER", color = Color.Black, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
         }
     }
 }
