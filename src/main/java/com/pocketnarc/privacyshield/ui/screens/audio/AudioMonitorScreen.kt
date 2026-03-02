@@ -37,6 +37,9 @@ fun AudioMonitorScreen(onNavigateBack: () -> Unit) {
     val micPermissionState = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
     
     val isMonitoring by viewModel.isMonitoring.collectAsState()
+    val isCalibrating by viewModel.isCalibrating.collectAsState()
+    val calibrationProgress by viewModel.calibrationProgress.collectAsState()
+    val forensicMessage by viewModel.forensicMessage.collectAsState()
     val decibels by viewModel.decibels.collectAsState()
     val highFreqActivity by viewModel.highFreqActivity.collectAsState()
     val spectrumData by viewModel.spectrumData.collectAsState()
@@ -78,15 +81,25 @@ fun AudioMonitorScreen(onNavigateBack: () -> Unit) {
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(if (isMonitoring) Color.Red else Color(0xFF00E676))
+                                .background(if (isMonitoring) Color.Red else if (isCalibrating) Color.Yellow else Color(0xFF00E676))
                         )
                         Spacer(Modifier.width(12.dp))
                         Text(
-                            text = if (isMonitoring) "ACOUSTIC_SURVEILLANCE_ACTIVE" else "SYSTEM_READY",
+                            text = forensicMessage,
                             color = Color.White,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
+                            fontSize = 11.sp
+                        )
+                    }
+                    
+                    if (isCalibrating) {
+                        Spacer(Modifier.height(12.dp))
+                        LinearProgressIndicator(
+                            progress = { calibrationProgress },
+                            modifier = Modifier.fillMaxWidth().height(2.dp).clip(CircleShape),
+                            color = Color.Yellow,
+                            trackColor = Color.DarkGray
                         )
                     }
                     
@@ -120,9 +133,9 @@ fun AudioMonitorScreen(onNavigateBack: () -> Unit) {
                     .border(1.dp, Color.DarkGray, RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (!isMonitoring) {
+                if (!isMonitoring && !isCalibrating) {
                     Text(
-                        "ACOUSTIC_INIT_PENDING",
+                        "READY_FOR_INTERROGATION",
                         color = Color.DarkGray,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp
@@ -137,22 +150,24 @@ fun AudioMonitorScreen(onNavigateBack: () -> Unit) {
             // Control Button
             if (micPermissionState.status.isGranted) {
                 Button(
-                    onClick = { if (isMonitoring) viewModel.stopMonitoring() else viewModel.startMonitoring() },
+                    onClick = { if (!isMonitoring && !isCalibrating) viewModel.startBurstScan() },
+                    enabled = !isMonitoring && !isCalibrating,
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isMonitoring) Color.DarkGray else Color(0xFF00E676)
+                        containerColor = Color(0xFF00E676),
+                        disabledContainerColor = Color.DarkGray
                     ),
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Icon(
                         if (isMonitoring) Icons.Default.Stop else Icons.Default.Mic,
                         contentDescription = null,
-                        tint = if (isMonitoring) Color.White else Color.Black
+                        tint = if (isMonitoring || isCalibrating) Color.White else Color.Black
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        if (isMonitoring) "TERMINATE MONITOR" else "INITIALIZE ACOUSTIC SCAN",
-                        color = if (isMonitoring) Color.White else Color.Black,
+                        if (isCalibrating) "CALIBRATING..." else if (isMonitoring) "SCAN_IN_PROGRESS" else "START FORENSIC BURST",
+                        color = if (isMonitoring || isCalibrating) Color.White else Color.Black,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
                     )
@@ -169,7 +184,7 @@ fun AudioMonitorScreen(onNavigateBack: () -> Unit) {
             
             Spacer(Modifier.height(16.dp))
             Text(
-                "Detecting hidden tracking beacons and acoustic surveillance markers.",
+                "Burst mode isolates ultrasonic beacons without murdering battery.",
                 color = Color.Gray,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
@@ -188,7 +203,7 @@ fun SpectrumCanvas(data: FloatArray) {
         )
         
         data.forEachIndexed { index, value ->
-            val barHeight = value * size.height * 20f
+            val barHeight = (value * size.height * 1.5f).coerceAtMost(size.height)
             drawRect(
                 brush = brush,
                 topLeft = Offset(index * barWidth, size.height - barHeight),
