@@ -3,7 +3,6 @@ package com.pocketnarc.privacyshield.ui.navigation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,6 +16,8 @@ import com.pocketnarc.privacyshield.ui.screens.lens.LensDetectorScreen
 import com.pocketnarc.privacyshield.ui.screens.magnetometer.MagnetometerScreen
 import com.pocketnarc.privacyshield.ui.screens.network.NetworkScannerScreen
 import com.pocketnarc.privacyshield.ui.screens.audio.AudioMonitorScreen
+import com.pocketnarc.privacyshield.ui.screens.integrity.SystemIntegrityScreen
+import com.pocketnarc.privacyshield.ui.screens.bluetooth.BluetoothScannerScreen
 import com.pocketnarc.privacyshield.ui.screens.onboarding.OnboardingScreen
 import kotlinx.coroutines.launch
 
@@ -27,6 +28,8 @@ object NavRoutes {
     const val LENS = "lens"
     const val NETWORK = "network"
     const val AUDIO = "audio"
+    const val INTEGRITY = "integrity"
+    const val BLUETOOTH = "bluetooth"
 }
 
 @Composable
@@ -37,11 +40,9 @@ fun PrivacyShieldNavHost(
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
 
-    // Collect onboarding status with null as initial to detect "loading" state
     val hasCompletedOnboarding by onboardingRepository.hasCompletedOnboarding.collectAsState(initial = null)
 
     if (hasCompletedOnboarding == null) {
-        // Show a loader while DataStore is reading the preference
         Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Color(0xFF00E676))
         }
@@ -71,7 +72,9 @@ fun PrivacyShieldNavHost(
                     onNavigateToMagnetometer = { navController.navigate(NavRoutes.MAGNETOMETER) },
                     onNavigateToLensDetector = { navController.navigate(NavRoutes.LENS) },
                     onNavigateToNetworkScanner = { navController.navigate(NavRoutes.NETWORK) },
-                    onNavigateToAudioMonitor = { navController.navigate(NavRoutes.AUDIO) }
+                    onNavigateToAudioMonitor = { navController.navigate(NavRoutes.AUDIO) },
+                    onNavigateToIntegrity = { navController.navigate(NavRoutes.INTEGRITY) },
+                    onNavigateToBluetooth = { navController.navigate(NavRoutes.BLUETOOTH) }
                 )
             }
 
@@ -89,6 +92,14 @@ fun PrivacyShieldNavHost(
 
             composable(NavRoutes.AUDIO) {
                 AudioMonitorScreen(onNavigateBack = { navController.popBackStack() })
+            }
+
+            composable(NavRoutes.INTEGRITY) {
+                SystemIntegrityScreen(onNavigateBack = { navController.popBackStack() })
+            }
+
+            composable(NavRoutes.BLUETOOTH) {
+                BluetoothScannerScreen(onNavigateBack = { navController.popBackStack() })
             }
         }
     }

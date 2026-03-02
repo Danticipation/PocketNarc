@@ -28,13 +28,17 @@ fun HomeScreen(
     onNavigateToMagnetometer: () -> Unit,
     onNavigateToLensDetector: () -> Unit,
     onNavigateToNetworkScanner: () -> Unit,
-    onNavigateToAudioMonitor: () -> Unit
+    onNavigateToAudioMonitor: () -> Unit,
+    onNavigateToIntegrity: () -> Unit,
+    onNavigateToBluetooth: () -> Unit
 ) {
     val scanOptions = listOf(
         ScanOption("EM Field Scanner", "Magnetometer-based detection", onNavigateToMagnetometer),
         ScanOption("Lens Reflection", "Camera + flashlight detection", onNavigateToLensDetector),
-        ScanOption("Network Scanner", "Wi-Fi & Bluetooth devices", onNavigateToNetworkScanner),
-        ScanOption("Audio Monitor", "Microphone dB analysis", onNavigateToAudioMonitor)
+        ScanOption("Network Scanner", "Wi-Fi & Forensic Analysis", onNavigateToNetworkScanner),
+        ScanOption("Bluetooth Hunt", "BLE Tracker & Beacon discovery", onNavigateToBluetooth),
+        ScanOption("Audio Monitor", "Ultrasonic & dB Analysis", onNavigateToAudioMonitor),
+        ScanOption("System Integrity", "Root & ADB security audit", onNavigateToIntegrity)
     )
 
     Scaffold(
