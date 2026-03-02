@@ -1,72 +1,207 @@
 package com.pocketnarc.privacyshield.ui.screens.audio
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.animation.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun AudioMonitorScreen(onNavigateBack: () -> Unit) {
+    val viewModel: AudioMonitorViewModel = viewModel()
+    val micPermissionState = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
+    
+    val isMonitoring by viewModel.isMonitoring.collectAsState()
+    val decibels by viewModel.decibels.collectAsState()
+    val highFreqActivity by viewModel.highFreqActivity.collectAsState()
+    val spectrumData by viewModel.spectrumData.collectAsState()
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Audio Environment Monitor", fontWeight = FontWeight.Bold) },
+                title = { Text("PRIVATAID_AUDIO_FORENSICS", fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black,
+                    titleContentColor = Color(0xFF00E676),
+                    navigationIconContentColor = Color.White
+                )
             )
-        }
+        },
+        containerColor = Color.Black
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            // Forensic Status Dashboard
+            Surface(
+                color = Color(0xFF1A1A1A),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth().border(1.dp, Color.DarkGray, MaterialTheme.shapes.medium)
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "dB meter to detect constant low-level noise",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "(Microphone integration pending)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (isMonitoring) Color.Red else Color(0xFF00E676))
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = if (isMonitoring) "ACOUSTIC_SURVEILLANCE_ACTIVE" else "SYSTEM_READY",
+                            color = Color.White,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                    
+                    Spacer(Modifier.height(16.dp))
+                    
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        ForensicStat(
+                            label = "AMPLITUDE",
+                            value = "${decibels.toInt()} dB",
+                            modifier = Modifier.weight(1f)
+                        )
+                        ForensicStat(
+                            label = "ULTRASONIC",
+                            value = if (highFreqActivity > 0.5f) "DETECTION" else "CLEAN",
+                            valueColor = if (highFreqActivity > 0.5f) Color.Red else Color(0xFF00E676),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
+
+            Spacer(Modifier.height(24.dp))
+
+            // Spectrum Visualizer
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF050505))
+                    .border(1.dp, Color.DarkGray, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!isMonitoring) {
+                    Text(
+                        "ACOUSTIC_INIT_PENDING",
+                        color = Color.DarkGray,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp
+                    )
+                } else {
+                    SpectrumCanvas(spectrumData)
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // Control Button
+            if (micPermissionState.status.isGranted) {
+                Button(
+                    onClick = { if (isMonitoring) viewModel.stopMonitoring() else viewModel.startMonitoring() },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isMonitoring) Color.DarkGray else Color(0xFF00E676)
+                    ),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(
+                        if (isMonitoring) Icons.Default.Stop else Icons.Default.Mic,
+                        contentDescription = null,
+                        tint = if (isMonitoring) Color.White else Color.Black
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        if (isMonitoring) "TERMINATE MONITOR" else "INITIALIZE ACOUSTIC SCAN",
+                        color = if (isMonitoring) Color.White else Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            } else {
+                Button(
+                    onClick = { micPermissionState.launchPermissionRequest() },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Yellow)
+                ) {
+                    Text("GRANT_MIC_ACCESS", color = Color.Black, fontFamily = FontFamily.Monospace)
+                }
+            }
+            
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Detecting hidden tracking beacons and acoustic surveillance markers.",
+                color = Color.Gray,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
         }
+    }
+}
+
+@Composable
+fun SpectrumCanvas(data: FloatArray) {
+    Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        val barWidth = size.width / data.size
+        val brush = Brush.verticalGradient(
+            colors = listOf(Color(0xFF00E676), Color(0xFF004D40))
+        )
+        
+        data.forEachIndexed { index, value ->
+            val barHeight = value * size.height * 20f
+            drawRect(
+                brush = brush,
+                topLeft = Offset(index * barWidth, size.height - barHeight),
+                size = androidx.compose.ui.geometry.Size(barWidth - 2.dp.toPx(), barHeight)
+            )
+        }
+    }
+}
+
+@Composable
+fun ForensicStat(label: String, value: String, valueColor: Color = Color.White, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(label, color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        Text(value, color = valueColor, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
     }
 }

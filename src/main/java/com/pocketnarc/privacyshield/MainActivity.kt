@@ -9,7 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.*
 import com.pocketnarc.privacyshield.data.OnboardingRepository
 import com.pocketnarc.privacyshield.ui.navigation.PrivacyShieldNavHost
@@ -33,31 +34,37 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             PrivacyShieldTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.Black
-                ) {
-                    val permissionsToRequest = mutableListOf(
+                val permissionsToRequest = remember {
+                    val list = mutableListOf(
                         Manifest.permission.CAMERA,
                         Manifest.permission.RECORD_AUDIO,
                         Manifest.permission.ACCESS_FINE_LOCATION,
                         Manifest.permission.ACCESS_COARSE_LOCATION
                     )
-
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN)
-                        permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT)
+                        list.add(Manifest.permission.BLUETOOTH_SCAN)
+                        list.add(Manifest.permission.BLUETOOTH_CONNECT)
                     }
+                    list
+                }
 
-                    val permissionState = rememberMultiplePermissionsState(permissionsToRequest)
+                val permissionState = rememberMultiplePermissionsState(permissionsToRequest)
+                var bypassPermissions by remember { mutableStateOf(false) }
 
-                    if (permissionState.allPermissionsGranted) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.Black
+                ) {
+                    if (permissionState.allPermissionsGranted || bypassPermissions) {
                         PrivacyShieldNavHost(
                             paddingValues = WindowInsets.safeDrawing.asPaddingValues(),
                             onboardingRepository = onboardingRepository
                         )
                     } else {
-                        PermissionRequiredScreen(permissionState)
+                        PermissionRequiredScreen(
+                            permissionState = permissionState,
+                            onBypass = { bypassPermissions = true }
+                        )
                     }
                 }
             }
@@ -67,7 +74,10 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun PermissionRequiredScreen(permissionState: MultiplePermissionsState) {
+fun PermissionRequiredScreen(
+    permissionState: MultiplePermissionsState,
+    onBypass: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -92,12 +102,25 @@ fun PermissionRequiredScreen(permissionState: MultiplePermissionsState) {
             style = MaterialTheme.typography.bodyMedium
         )
         Spacer(Modifier.height(32.dp))
+        
         Button(
             onClick = { permissionState.launchMultiplePermissionRequest() },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
             shape = MaterialTheme.shapes.medium
         ) {
             Text("GRANT_ACCESS", color = Color.Black, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+        }
+        
+        Spacer(Modifier.height(16.dp))
+        
+        TextButton(onClick = onBypass) {
+            Text(
+                "CONTINUE_WITHOUT_PERMISSIONS",
+                color = Color.DarkGray,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp
+            )
         }
     }
 }
