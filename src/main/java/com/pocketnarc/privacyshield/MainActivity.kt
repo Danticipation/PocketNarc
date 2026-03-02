@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
         val onboardingRepository = OnboardingRepository(this)
 
         setContent {
+            // Unifying under the PrivatAid theme
             PrivacyShieldTheme {
                 val permissionsToRequest = remember {
                     val list = mutableListOf(

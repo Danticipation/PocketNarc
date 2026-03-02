@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Base application theme - use a system Material Components parent -->
-    <style name="Theme.PrivacyShield" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <!-- Base application theme -->
+    <style name="Theme.PrivatAid" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Primary -->
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_variant</item>
