@@ -65,6 +65,9 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.accompanist.permissions)
     
+    // Play Integrity
+    implementation(libs.play.integrity)
+    
     // Image Loading
     implementation(libs.coil.compose)
 
