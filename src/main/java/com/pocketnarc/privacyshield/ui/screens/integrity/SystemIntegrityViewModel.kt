@@ -17,11 +17,11 @@ data class IntegrityCheck(
 )
 
 enum class IntegrityStatus {
-    SECURE, COMPROMISED, WARNING, UNKNOWN
+    SECURE, COMPROMISED, WARNING
 }
 
 enum class IntegritySeverity {
-    LOW, MEDIUM, HIGH, CRITICAL
+    MEDIUM, HIGH, CRITICAL
 }
 
 class SystemIntegrityViewModel : ViewModel() {
@@ -102,7 +102,7 @@ class SystemIntegrityViewModel : ViewModel() {
             process = Runtime.getRuntime().exec(arrayOf("/system/xbin/which", "su"))
             val reader = process.inputStream.bufferedReader()
             reader.readLine() != null
-        } catch (t: Throwable) {
+        } catch (_: Throwable) {
             false
         } finally {
             process?.destroy()
