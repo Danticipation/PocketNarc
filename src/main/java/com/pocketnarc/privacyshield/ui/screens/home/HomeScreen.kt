@@ -20,11 +20,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pocketnarc.privacyshield.R
 
 data class ForensicTool(
     val title: String,
@@ -73,6 +75,24 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 20.sp
+                        )
+                    }
+                },
+                actions = {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 16.dp)
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF00E676).copy(alpha = 0.1f))
+                            .border(1.dp, Color(0xFF00E676).copy(alpha = 0.3f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                            contentDescription = "Logo",
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(32.dp)
                         )
                     }
                 },
@@ -154,7 +174,7 @@ fun ForensicToolCard(tool: ForensicTool) {
         targetValue = 0.7f,
         animationSpec = infiniteRepeatable(
             animation = tween(2000),
-            repeatMode = RepeatType.Reverse
+            repeatMode = RepeatMode.Reverse
         ),
         label = "alpha"
     )

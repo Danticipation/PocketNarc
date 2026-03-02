@@ -2,7 +2,7 @@
 <resources>
 
     <!-- Base application theme -->
-    <style name="Theme.PrivatAid" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.PrivacyShield" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Primary -->
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_variant</item>
