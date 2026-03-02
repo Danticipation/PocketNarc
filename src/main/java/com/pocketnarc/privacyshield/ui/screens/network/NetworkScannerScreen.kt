@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pocketnarc.privacyshield.ui.screens.lens.ForensicBullet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,12 +35,15 @@ fun NetworkScannerScreen(onNavigateBack: () -> Unit) {
     val devices by viewModel.devices.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val scanProgress by viewModel.scanProgress.collectAsState()
+    val currentStatus by viewModel.currentStatus.collectAsState()
     val deepScanResults by viewModel.deepScanResults.collectAsState()
+
+    var showInstructions by remember { mutableStateOf(true) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("PRIVATAID_NET_SCAN", fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
+                title = { Text("PRIVATAID_NET_AUDIT", fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -54,97 +58,106 @@ fun NetworkScannerScreen(onNavigateBack: () -> Unit) {
         },
         containerColor = Color.Black
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-        ) {
-            Surface(
-                color = Color(0xFF1A1A1A),
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth().border(1.dp, Color.DarkGray, MaterialTheme.shapes.medium)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(if (isScanning) Color.Yellow else Color(0xFF00E676))
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            text = if (isScanning) "SCAN_IN_PROGRESS..." else "NETWORK_SECURE",
-                            color = Color.White,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "${devices.size} devices identified on local network",
-                        color = Color.Gray,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    
-                    if (isScanning) {
-                        Spacer(Modifier.height(12.dp))
-                        LinearProgressIndicator(
-                            progress = { scanProgress },
-                            modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
-                            color = Color(0xFF00E676),
-                            trackColor = Color.DarkGray
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            if (devices.isEmpty() && !isScanning) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "READY TO INITIALIZE SCAN",
-                        color = Color.DarkGray,
-                        fontFamily = FontFamily.Monospace,
-                        textAlign = TextAlign.Center
-                    )
-                }
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (showInstructions) {
+                NetworkInstructions(onStart = { showInstructions = false })
             } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
                 ) {
-                    items(devices) { device ->
-                        ForensicDeviceCard(
-                            device = device,
-                            deepScanResult = deepScanResults[device.ip],
-                            onStartDeepScan = { viewModel.startDeepScan(device.ip) }
+                    // Status Header
+                    Surface(
+                        color = Color(0xFF1A1A1A),
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth().border(1.dp, Color.DarkGray, MaterialTheme.shapes.medium)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isScanning) Color.Yellow else Color(0xFF00E676))
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = if (isScanning) currentStatus else "AUDIT_COMPLETE",
+                                    color = Color.White,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    maxLines = 1
+                                )
+                            }
+                            
+                            if (isScanning) {
+                                Spacer(Modifier.height(12.dp))
+                                LinearProgressIndicator(
+                                    progress = { scanProgress },
+                                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                                    color = Color(0xFF00E676),
+                                    trackColor = Color.DarkGray
+                                )
+                            } else {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = "${devices.size} nodes identified on local subnet",
+                                    color = Color.Gray,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+
+                    if (devices.isEmpty() && !isScanning) {
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Text(
+                                "NO_FOREIGN_DEVICES_DETECTED",
+                                color = Color.DarkGray,
+                                fontFamily = FontFamily.Monospace,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(devices) { device ->
+                                ForensicDeviceCard(
+                                    device = device,
+                                    deepScanResult = deepScanResults[device.ip],
+                                    onStartDeepScan = { viewModel.startDeepScan(device.ip) }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { viewModel.startScan(context) },
+                        enabled = !isScanning,
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00E676),
+                            disabledContainerColor = Color.DarkGray
+                        ),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Text(
+                            text = if (isScanning) "AUDIT_IN_PROGRESS..." else "INITIALIZE NETWORK SCAN",
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
                         )
                     }
                 }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            Button(
-                onClick = { viewModel.startScan(context) },
-                enabled = !isScanning,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF00E676),
-                    disabledContainerColor = Color.DarkGray
-                ),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Text(
-                    text = if (isScanning) "SCANNING..." else "START NETWORK SCAN",
-                    color = if (isScanning) Color.Gray else Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
             }
         }
     }
@@ -157,6 +170,7 @@ fun ForensicDeviceCard(
     onStartDeepScan: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val isThreat = device.isThreat || (device.type == DeviceType.CAMERA)
     
     val icon = when (device.type) {
         DeviceType.CAMERA -> Icons.Default.Videocam
@@ -168,10 +182,9 @@ fun ForensicDeviceCard(
         else -> Icons.Default.Devices
     }
 
-    val color = when (device.type) {
-        DeviceType.CAMERA -> Color(0xFFFF5252)
-        DeviceType.ROUTER -> Color(0xFF448AFF)
-        DeviceType.PRINTER -> Color(0xFFFFB74D)
+    val color = when {
+        isThreat -> Color(0xFFFF5252)
+        device.type == DeviceType.PRINTER -> Color(0xFFFFB74D)
         else -> Color(0xFF00E676)
     }
 
@@ -182,7 +195,7 @@ fun ForensicDeviceCard(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
         border = androidx.compose.foundation.BorderStroke(
             1.dp, 
-            if (device.type == DeviceType.CAMERA) Color.Red.copy(alpha = 0.5f) else Color.DarkGray
+            if (isThreat) Color.Red.copy(alpha = 0.5f) else Color.DarkGray
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -210,9 +223,9 @@ fun ForensicDeviceCard(
                     )
                 }
                 
-                if (device.type == DeviceType.CAMERA) {
+                if (isThreat) {
                     Badge(containerColor = Color.Red, contentColor = Color.White) {
-                        Text("THREAT", modifier = Modifier.padding(horizontal = 4.dp))
+                        Text(if (device.type == DeviceType.CAMERA) "CAMERA" else "THREAT", modifier = Modifier.padding(horizontal = 4.dp))
                     }
                 }
                 
@@ -254,24 +267,20 @@ fun ForensicDeviceCard(
                         modifier = Modifier.fillMaxWidth().border(1.dp, Color.DarkGray, RoundedCornerShape(4.dp))
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    "VULNERABILITY_REPORT",
+                                    "DEEP_PROBE_REPORT",
                                     color = Color(0xFF00E676),
                                     fontSize = 10.sp,
                                     fontFamily = FontFamily.Monospace,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.weight(1f)
                                 )
-                                
                                 if (deepScanResult?.isScanning == true) {
                                     CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Color(0xFF00E676), strokeWidth = 1.dp)
                                 } else {
                                     Text(
-                                        "RUN SCAN",
+                                        "RUN_AUDIT",
                                         color = Color.White,
                                         fontSize = 10.sp,
                                         fontFamily = FontFamily.Monospace,
@@ -279,13 +288,12 @@ fun ForensicDeviceCard(
                                     )
                                 }
                             }
-                            
                             if (deepScanResult != null && deepScanResult.details.isNotEmpty()) {
                                 Spacer(Modifier.height(8.dp))
                                 deepScanResult.details.forEach { detail ->
                                     Text(
                                         text = "> $detail",
-                                        color = if (detail.contains("OPEN")) Color.Yellow else Color.Gray,
+                                        color = if (detail.contains("HIGH STEALTH")) Color.Yellow else if (detail.contains("OPEN")) Color.Red else Color.Gray,
                                         fontSize = 10.sp,
                                         fontFamily = FontFamily.Monospace,
                                         modifier = Modifier.padding(vertical = 1.dp)
@@ -295,15 +303,11 @@ fun ForensicDeviceCard(
                         }
                     }
                     
-                    if (device.type == DeviceType.CAMERA) {
+                    if (isThreat) {
                         Spacer(Modifier.height(12.dp))
-                        Surface(
-                            color = Color.Red.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
+                        Surface(color = Color.Red.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp), modifier = Modifier.fillMaxWidth()) {
                             Text(
-                                text = "WARNING: Potential surveillance device identified. High risk of unauthorized data transmission.",
+                                text = "FORENSIC WARNING: Device signature matches surveillance hardware profiles. High probability of unauthorized monitoring.",
                                 color = Color.Red,
                                 fontSize = 10.sp,
                                 fontFamily = FontFamily.Monospace,
@@ -318,20 +322,45 @@ fun ForensicDeviceCard(
 }
 
 @Composable
-fun ForensicRow(label: String, value: String) {
-    Row(modifier = Modifier.padding(vertical = 2.dp)) {
+fun NetworkInstructions(onStart: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(32.dp).background(Color.Black),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Dns, contentDescription = null, tint = Color(0xFF00E676), modifier = Modifier.size(64.dp))
+        Spacer(Modifier.height(24.dp))
         Text(
-            text = "$label: ",
-            color = Color.Gray,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 12.sp
-        )
-        Text(
-            text = value,
+            "NETWORK_AUDIT_PROTOCOL",
             color = Color.White,
             fontFamily = FontFamily.Monospace,
-            fontSize = 12.sp
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center
         )
+        Spacer(Modifier.height(16.dp))
+        ForensicBullet("CALIBRATION", "Only scans the local Wi-Fi subnet. Cellular and VPN should be inactive.")
+        ForensicBullet("LIMITATION", "Stealth devices (cloud-only) may not respond to local discovery.")
+        ForensicBullet("LEGAL_NOTICE", "Only scan networks you have explicit permission to audit.")
+        ForensicBullet("PRO_TIP", "Use 2.4 GHz bands if possible; IoT devices rarely use 5 GHz.")
+        
+        Spacer(Modifier.height(48.dp))
+        
+        Button(
+            onClick = onStart,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Text("I UNDERSTAND - START AUDIT", color = Color.Black, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+@Composable
+fun ForensicRow(label: String, value: String) {
+    Row(modifier = Modifier.padding(vertical = 2.dp)) {
+        Text(text = "$label: ", color = Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+        Text(text = value, color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
     }
 }
 
@@ -343,24 +372,13 @@ fun PortDetail(port: Int) {
         554 -> "RTSP (Streaming - CAMERA)"
         1935 -> "RTMP (Streaming - CAMERA)"
         8000 -> "Hikvision Service"
-        8080 -> "HTTP Alt / Web Admin"
-        9100 -> "JetDirect (PRINTER)"
-        631 -> "IPP (PRINTER)"
-        37777 -> "Dahua/Lorex Service"
-        else -> "General Service"
+        8080 -> "Web Admin Portal"
+        9100 -> "Printer Port"
+        else -> "Active Service"
     }
-    
-    Row(
-        modifier = Modifier.padding(start = 8.dp, top = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Default.Adjust, null, tint = Color(0xFF00E676), modifier = Modifier.size(8.dp))
         Spacer(Modifier.width(8.dp))
-        Text(
-            text = "$port - $description",
-            color = if (port in listOf(554, 1935, 8000, 37777, 9100, 631)) Color(0xFFFFB74D) else Color.Gray,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 11.sp
-        )
+        Text(text = "$port - $description", color = if (port in listOf(554, 1935, 8000)) Color.Red else Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
     }
 }

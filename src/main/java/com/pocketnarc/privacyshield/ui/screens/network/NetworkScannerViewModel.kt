@@ -50,6 +50,9 @@ class NetworkScannerViewModel : ViewModel() {
     private val _scanProgress = MutableStateFlow(0f)
     val scanProgress: StateFlow<Float> = _scanProgress.asStateFlow()
 
+    private val _currentStatus = MutableStateFlow("READY_FOR_AUDIT")
+    val currentStatus: StateFlow<String> = _currentStatus.asStateFlow()
+
     private val _deepScanResults = MutableStateFlow<Map<String, DeepScanResult>>(emptyMap())
     val deepScanResults: StateFlow<Map<String, DeepScanResult>> = _deepScanResults.asStateFlow()
 
@@ -69,58 +72,69 @@ class NetworkScannerViewModel : ViewModel() {
 
                 val ipString = getLocalIpAddress(context) ?: "0.0.0.0"
                 if (ipString == "0.0.0.0") {
+                    _currentStatus.value = "ERROR: NO_WIFI_DETECTED"
                     _isScanning.value = false
                     return@launch
                 }
 
                 val prefix = ipString.substring(0, ipString.lastIndexOf(".") + 1)
-                
                 startDiscovery(context)
                 launch(Dispatchers.IO) { discoverUPnP() }
 
                 withContext(Dispatchers.IO) {
-                    val jobs = mutableListOf<Job>()
                     val totalIps = 254
                     var scannedCount = 0
-
-                    for (i in 1..254) {
-                        val testIp = prefix + i
-                        val job = launch {
-                            try {
-                                val address = InetAddress.getByName(testIp)
-                                if (address.isReachable(400)) {
+                    
+                    // Throttled parallel scan (30 at a time)
+                    (1..254).chunked(30).forEach { chunk ->
+                        chunk.map { i ->
+                            launch {
+                                val testIp = prefix + i
+                                _currentStatus.value = "INTERROGATING_$testIp"
+                                
+                                if (isLikelyPresent(testIp)) {
                                     val openPorts = checkCommonPorts(testIp)
                                     val existing = foundDevicesMap[testIp]
                                     
                                     val device = NetworkDevice(
                                         ip = testIp,
-                                        hostname = existing?.hostname ?: address.canonicalHostName,
-                                        type = identifyDevice(testIp, existing?.hostname ?: address.canonicalHostName, openPorts),
+                                        hostname = existing?.hostname ?: "Identifying...",
+                                        type = identifyDevice(testIp, existing?.hostname ?: "", openPorts),
                                         ports = openPorts,
                                         manufacturer = existing?.manufacturer ?: "Unknown",
-                                        isThreat = isPotentialSpyDevice(existing?.hostname ?: address.canonicalHostName, openPorts),
+                                        isThreat = isPotentialSpyDevice(existing?.hostname ?: "", openPorts),
                                         upnpLocation = existing?.upnpLocation
                                     )
                                     foundDevicesMap[testIp] = device
                                     updateDeviceList()
                                 }
-                            } catch (_: Exception) { }
-                            
-                            synchronized(this@NetworkScannerViewModel) {
-                                scannedCount++
-                                _scanProgress.value = scannedCount / totalIps.toFloat()
+                                
+                                synchronized(this@NetworkScannerViewModel) {
+                                    scannedCount++
+                                    _scanProgress.value = scannedCount / totalIps.toFloat()
+                                }
                             }
-                        }
-                        jobs.add(job)
-                        if (i % 40 == 0) delay(20)
+                        }.joinAll()
+                        delay(50) // Hardware cool-down
                     }
-                    jobs.joinAll()
                 }
             } finally {
                 stopDiscovery()
+                _currentStatus.value = "NETWORK_AUDIT_COMPLETE"
                 _isScanning.value = false
                 _scanProgress.value = 1f
             }
+        }
+    }
+
+    private suspend fun isLikelyPresent(ip: String): Boolean {
+        // Double-check: ICMP Ping + Common Ports
+        val isPingable = try { InetAddress.getByName(ip).isReachable(300) } catch (_: Exception) { false }
+        if (isPingable) return true
+        
+        val quickPorts = listOf(80, 443, 554, 8000, 8080)
+        return quickPorts.any { port ->
+            try { Socket().use { it.connect(InetSocketAddress(ip, port), 150) }; true } catch (_: Exception) { false }
         }
     }
 
@@ -161,22 +175,17 @@ class NetworkScannerViewModel : ViewModel() {
                         val existing = foundDevicesMap[ip]
                         
                         val serverLine = response.lines().find { it.contains("SERVER:", ignoreCase = true) }?.substringAfter(":")?.trim()
-                        val locationLine = response.lines().find { it.contains("LOCATION:", ignoreCase = true) }?.substringAfter(":")?.trim()
-                        
-                        if (serverLine != null || locationLine != null) {
-                            val info = serverLine ?: locationLine ?: ""
+                        if (serverLine != null) {
                             val manufacturer = when {
-                                info.contains("Ring", true) -> "Ring (Amazon)"
-                                info.contains("Apple", true) -> "Apple Inc."
-                                info.contains("Google", true) -> "Google"
-                                info.contains("HP", true) -> "HP"
-                                else -> info.take(30)
+                                serverLine.contains("Ring", true) -> "Ring (Amazon)"
+                                serverLine.contains("Apple", true) -> "Apple Inc."
+                                serverLine.contains("HP", true) -> "HP"
+                                else -> serverLine.take(30)
                             }
                             foundDevicesMap[ip] = (existing ?: NetworkDevice(ip)).copy(
                                 manufacturer = manufacturer,
                                 type = if (manufacturer.contains("Ring") || manufacturer.contains("Cam")) DeviceType.CAMERA else (existing?.type ?: DeviceType.GENERIC),
-                                isThreat = existing?.isThreat ?: manufacturer.contains("Ring"),
-                                upnpLocation = locationLine
+                                isThreat = existing?.isThreat ?: manufacturer.contains("Ring")
                             )
                             updateDeviceList()
                         }
@@ -207,33 +216,16 @@ class NetworkScannerViewModel : ViewModel() {
                     try {
                         val url = URL(urlString)
                         val connection = url.openConnection() as HttpURLConnection
-                        connection.connectTimeout = 1000
+                        connection.connectTimeout = 800
                         val xmlText = connection.inputStream.bufferedReader().use { it.readText() }
-                        
                         val friendlyName = xmlText.substringAfter("<friendlyName>", "").substringBefore("</friendlyName>")
                         val manufacturer = xmlText.substringAfter("<manufacturer>", "").substringBefore("</manufacturer>")
-                        val model = xmlText.substringAfter("<modelName>", "").substringBefore("</modelName>")
-                        
-                        if (friendlyName.isNotEmpty()) {
-                            details.add("FRIENDLY_NAME: $friendlyName")
-                            forensicName = friendlyName
-                        }
-                        if (manufacturer.isNotEmpty()) {
-                            details.add("MANUFACTURER: $manufacturer")
-                            forensicVend = manufacturer
-                        }
-                        if (model.isNotEmpty()) details.add("MODEL: $model")
+                        if (friendlyName.isNotEmpty()) { details.add("FRIENDLY_NAME: $friendlyName"); forensicName = friendlyName }
+                        if (manufacturer.isNotEmpty()) { details.add("MANUFACTURER: $manufacturer"); forensicVend = manufacturer }
                     } catch (_: Exception) {}
                 }
 
-                val forensicMap = mapOf(
-                    62078 to "Apple Mobile Service",
-                    554 to "RTSP (SURVEILLANCE)",
-                    8008 to "Google Cast Service",
-                    9100 to "HP Printer Port",
-                    137 to "NetBIOS (COMPUTER NAME)"
-                )
-
+                val forensicMap = mapOf(62078 to "Apple Service", 554 to "RTSP (SURVEILLANCE)", 8008 to "Google Cast", 9100 to "Printer Port", 137 to "NetBIOS")
                 for ((port, desc) in forensicMap) {
                     try {
                         Socket().use { it.connect(InetSocketAddress(ip, port), 250) }
@@ -249,16 +241,10 @@ class NetworkScannerViewModel : ViewModel() {
             }
 
             if (existing != null) {
-                foundDevicesMap[ip] = existing.copy(
-                    hostname = if (forensicName != "Unknown Device") forensicName else existing.hostname,
-                    type = forensicType ?: existing.type,
-                    manufacturer = if (forensicVend != "Unknown") forensicVend else existing.manufacturer
-                )
+                foundDevicesMap[ip] = existing.copy(hostname = forensicName, type = forensicType ?: existing.type, manufacturer = forensicVend)
                 updateDeviceList()
             }
-            if (details.isEmpty()) details.add("HIGH STEALTH: Device is listening but providing zero metadata signatures.")
-            else details.add("ANALYSIS COMPLETE: Fingerprints matched against known device signatures.")
-            
+            if (details.isEmpty()) details.add("HIGH STEALTH: Listening but providing zero forensic signatures.")
             _deepScanResults.value = _deepScanResults.value + (ip to DeepScanResult(ip, details, isScanning = false))
         }
     }
@@ -273,9 +259,9 @@ class NetworkScannerViewModel : ViewModel() {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                         nsdManager?.registerServiceInfoCallback(service, { it.run() }, object : NsdManager.ServiceInfoCallback {
                             override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) {}
-                            override fun onServiceUpdated(serviceInfo: NsdServiceInfo) {
-                                val host = serviceInfo.hostAddresses.firstOrNull() ?: return
-                                updateDeviceInfo(host.hostAddress ?: return, serviceInfo, type)
+                            override fun onServiceUpdated(si: NsdServiceInfo) {
+                                val host = si.hostAddresses.firstOrNull() ?: return
+                                updateDeviceInfo(host.hostAddress ?: return, si, type)
                             }
                             override fun onServiceLost() {}
                             override fun onServiceInfoCallbackUnregistered() {}
