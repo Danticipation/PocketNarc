@@ -60,7 +60,6 @@ fun NetworkScannerScreen(onNavigateBack: () -> Unit) {
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            // Status Header
             Surface(
                 color = Color(0xFF1A1A1A),
                 shape = MaterialTheme.shapes.medium,
@@ -104,7 +103,6 @@ fun NetworkScannerScreen(onNavigateBack: () -> Unit) {
 
             Spacer(Modifier.height(24.dp))
 
-            // Device List
             if (devices.isEmpty() && !isScanning) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
@@ -131,7 +129,6 @@ fun NetworkScannerScreen(onNavigateBack: () -> Unit) {
 
             Spacer(Modifier.height(16.dp))
 
-            // Scan Button
             Button(
                 onClick = { viewModel.startScan(context) },
                 enabled = !isScanning,
@@ -167,12 +164,14 @@ fun ForensicDeviceCard(
         DeviceType.MOBILE -> Icons.Default.Smartphone
         DeviceType.COMPUTER -> Icons.Default.Computer
         DeviceType.ROUTER -> Icons.Default.SettingsEthernet
+        DeviceType.PRINTER -> Icons.Default.Print
         else -> Icons.Default.Devices
     }
 
     val color = when (device.type) {
         DeviceType.CAMERA -> Color(0xFFFF5252)
         DeviceType.ROUTER -> Color(0xFF448AFF)
+        DeviceType.PRINTER -> Color(0xFFFFB74D)
         else -> Color(0xFF00E676)
     }
 
@@ -229,7 +228,7 @@ fun ForensicDeviceCard(
                     HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(bottom = 12.dp))
                     
                     ForensicRow("TYPE", device.type.name)
-                    if (device.manufacturer != null) {
+                    if (device.manufacturer != "Unknown") {
                         ForensicRow("VEND", device.manufacturer)
                     }
                     
@@ -249,7 +248,6 @@ fun ForensicDeviceCard(
 
                     Spacer(Modifier.height(16.dp))
                     
-                    // Vulnerability Scan Section
                     Surface(
                         color = Color.Black,
                         shape = RoundedCornerShape(4.dp),
@@ -344,9 +342,11 @@ fun PortDetail(port: Int) {
         443 -> "HTTPS (Secure Web)"
         554 -> "RTSP (Streaming - CAMERA)"
         1935 -> "RTMP (Streaming - CAMERA)"
-        8000 -> "ONVIF/Common Cam"
-        8080 -> "HTTP Alt"
-        37777 -> "Dahua/Lorex Default"
+        8000 -> "Hikvision Service"
+        8080 -> "HTTP Alt / Web Admin"
+        9100 -> "JetDirect (PRINTER)"
+        631 -> "IPP (PRINTER)"
+        37777 -> "Dahua/Lorex Service"
         else -> "General Service"
     }
     
@@ -358,7 +358,7 @@ fun PortDetail(port: Int) {
         Spacer(Modifier.width(8.dp))
         Text(
             text = "$port - $description",
-            color = if (port in listOf(554, 1935, 8000, 37777)) Color(0xFFFF5252) else Color.Gray,
+            color = if (port in listOf(554, 1935, 8000, 37777, 9100, 631)) Color(0xFFFFB74D) else Color.Gray,
             fontFamily = FontFamily.Monospace,
             fontSize = 11.sp
         )
