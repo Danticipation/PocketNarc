@@ -1,4 +1,4 @@
-# Privacy Shield (PocketNarc)
+# Privacy Shield (PrivatAid)
 
 A native Android application that assists users in screening for potential hidden cameras, microphones, and tracking devices using phone sensors.
 
@@ -26,22 +26,24 @@ app/src/main/java/com/pocketnarc/privacyshield/
 │   ├── screens/
 │   │   ├── onboarding/      # Mandatory disclaimer + acknowledgment
 │   │   ├── home/            # Scan option grid
-│   │   ├── magnetometer/    # EM Field Scanner (placeholder)
-│   │   ├── lens/            # Lens Reflection Detector (placeholder)
-│   │   ├── network/         # Wi-Fi/Bluetooth Scanner (placeholder)
-│   │   └── audio/           # Audio Environment Monitor (placeholder)
+│   │   ├── magnetometer/    # Magnetic Anomaly Scanner (Active)
+│   │   ├── lens/            # Lens Reflection Sweep (Active)
+│   │   ├── network/         # Network Device Audit (Active)
+│   │   ├── audio/           # Acoustic Probe / Ultrasound (Active)
+│   │   └── bluetooth/       # BLE Tracker Hunt (Active)
 │   └── theme/               # Material 3 theme
 ```
 
 ## Features (Current)
 
 - [x] Mandatory onboarding with disclaimer and acknowledgment checkbox
-- [x] Home screen with scan option cards
-- [x] Navigation to all feature screens
-- [ ] Magnetometer-based EM field scanner
-- [ ] Lens reflection detector (CameraX + flashlight)
-- [ ] Network scanner (Wi-Fi/Bluetooth)
-- [ ] Audio environment monitor
+- [x] Home screen with forensic scan option cards
+- [x] Magnetic Field Detector (EMF Anomaly Scanner)
+- [x] Lens Reflection Scanner (CameraX-based optical glint detection)
+- [x] Network Device Discovery (Local subnet audit for cameras)
+- [x] Bluetooth & AirTag Tracker (BLE Beacon analysis)
+- [x] Ultrasonic & Audio Analyzer (High-frequency environment monitor)
+- [ ] Device Security Audit (Kernel & Play Integrity - In Progress)
 
 ## Building
 
@@ -53,10 +55,6 @@ app/src/main/java/com/pocketnarc/privacyshield/
 - Android SDK (API 35)
 - Java 17 or 21 (recommended). Java 25+ may cause Kotlin compiler issues—set `JAVA_HOME` to a compatible JDK if needed.
 - Android Studio (or command-line tools)
-
-## Launcher Icons
-
-Replace `ic_launcher_foreground.xml` and add proper mipmap assets for production. Consider using [Android Asset Studio](https://romannurik.github.io/AndroidAssetStudio/) for icon generation.
 
 ## Roadmap
 
