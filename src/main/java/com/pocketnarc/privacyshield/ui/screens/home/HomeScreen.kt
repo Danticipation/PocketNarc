@@ -61,14 +61,12 @@ fun HomeScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .background(Color(0xFF00E676), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("P", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        }
+                        Icon(
+                            painter = painterResource(id = R.drawable.privataid_logo),
+                            contentDescription = null,
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(32.dp)
+                        )
                         Spacer(Modifier.width(12.dp))
                         Text(
                             "PrivatAid", 
@@ -82,17 +80,17 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .padding(end = 16.dp)
-                            .size(40.dp)
+                            .size(224.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF00E676).copy(alpha = 0.1f))
                             .border(1.dp, Color(0xFF00E676).copy(alpha = 0.3f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                            painter = painterResource(id = R.drawable.privataid_logo),
                             contentDescription = "Logo",
                             tint = Color.Unspecified,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(242.dp)
                         )
                     }
                 },
