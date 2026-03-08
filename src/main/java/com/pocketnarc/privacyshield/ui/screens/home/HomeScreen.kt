@@ -100,19 +100,7 @@ fun HomeScreen(
                 )
             )
         },
-        containerColor = Color.Black,
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { /* Global Scan Logic */ },
-                containerColor = Color(0xFF00E676),
-                contentColor = Color.Black,
-                shape = CircleShape
-            ) {
-                Icon(Icons.Default.Shield, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("SCAN ALL", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-            }
-        }
+        containerColor = Color.Black
     ) { innerPadding ->
         Column(
             modifier = Modifier

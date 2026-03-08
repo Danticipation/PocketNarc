@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Privacy Shield</string>
+
+    <!-- Disclaimer -->
+    <string name="disclaimer_title">Important Notice</string>
+    <string name="disclaimer_text">This application uses phone sensors to assist in screening for potential surveillance devices. It cannot detect all threats, especially passive or unpowered ones. For critical situations, consult professional equipment and services.</string>
+    <string name="disclaimer_acknowledge">I understand the limitations and agree to use this as an assistive tool only</string>
+    <string name="btn_continue">Continue</string>
+
+    <!-- Magnetometer -->
+    <string name="magnetometer_title">EM Field Scanner</string>
+    <string name="magnetometer_calibrate">Hold phone steady for 5–10 seconds to calibrate</string>
+
+    <!-- Lens Detection -->
+    <string name="lens_title">Lens Reflection Detector</string>
+    <string name="lens_low_light_prompt">For best results, use in low-light conditions and sweep slowly</string>
+
+    <!-- Network -->
+    <string name="network_title">Network Scanner</string>
+    <string name="network_disclaimer">Many legitimate devices may appear. This is for awareness only.</string>
+
+    <!-- Audio -->
+    <string name="audio_title">Audio Environment Monitor</string>
+</resources>
