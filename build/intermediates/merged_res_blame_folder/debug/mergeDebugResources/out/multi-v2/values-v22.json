@@ -4,7 +4,7 @@
             "outputFile": "com.pocketnarc.privacyshield-mergeDebugResources-78:/values-v22/values-v22.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\sharp\\.gradle\\caches\\9.2.1\\transforms\\f5a18a4d40079459a0b0e512709faed8\\workspace\\transformed\\appcompat-1.6.1\\res\\values-v22\\values-v22.xml",
+                    "source": "C:\\Users\\sharp\\.gradle\\caches\\9.2.1\\transforms\\e6e625f016b5595f1c6a0bacd3be7e54\\workspace\\transformed\\appcompat-1.6.1\\res\\values-v22\\values-v22.xml",
                     "from": {
                         "startLines": "2,3,4,9",
                         "startColumns": "4,4,4,4",
