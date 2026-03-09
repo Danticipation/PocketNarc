@@ -80,7 +80,7 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .padding(end = 16.dp)
-                            .size(224.dp)
+                            .size(24.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF00E676).copy(alpha = 0.1f))
                             .border(1.dp, Color(0xFF00E676).copy(alpha = 0.3f), CircleShape),
@@ -90,7 +90,7 @@ fun HomeScreen(
                             painter = painterResource(id = R.drawable.privataid_logo),
                             contentDescription = "Logo",
                             tint = Color.Unspecified,
-                            modifier = Modifier.size(242.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 },

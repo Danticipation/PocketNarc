@@ -175,17 +175,21 @@ class NetworkScannerViewModel : ViewModel() {
                         val existing = foundDevicesMap[ip]
                         
                         val serverLine = response.lines().find { it.contains("SERVER:", ignoreCase = true) }?.substringAfter(":")?.trim()
-                        if (serverLine != null) {
+                        val locationLine = response.lines().find { it.startsWith("LOCATION:", ignoreCase = true) }?.substringAfter(":")?.trim()
+                        
+                        if (serverLine != null || locationLine != null) {
                             val manufacturer = when {
-                                serverLine.contains("Ring", true) -> "Ring (Amazon)"
-                                serverLine.contains("Apple", true) -> "Apple Inc."
-                                serverLine.contains("HP", true) -> "HP"
-                                else -> serverLine.take(30)
+                                serverLine?.contains("Ring", true) == true -> "Ring (Amazon)"
+                                serverLine?.contains("Apple", true) == true -> "Apple Inc."
+                                serverLine?.contains("HP", true) == true -> "HP"
+                                serverLine != null -> serverLine.take(30)
+                                else -> existing?.manufacturer ?: "Unknown"
                             }
                             foundDevicesMap[ip] = (existing ?: NetworkDevice(ip)).copy(
                                 manufacturer = manufacturer,
                                 type = if (manufacturer.contains("Ring") || manufacturer.contains("Cam")) DeviceType.CAMERA else (existing?.type ?: DeviceType.GENERIC),
-                                isThreat = existing?.isThreat ?: manufacturer.contains("Ring")
+                                isThreat = existing?.isThreat ?: manufacturer.contains("Ring"),
+                                upnpLocation = locationLine ?: existing?.upnpLocation
                             )
                             updateDeviceList()
                         }

@@ -37,6 +37,9 @@ class BluetoothScannerViewModel : ViewModel() {
     private val _scanProgress = MutableStateFlow(0f)
     val scanProgress: StateFlow<Float> = _scanProgress.asStateFlow()
 
+    private val _bluetoothDisabled = MutableStateFlow(false)
+    val bluetoothDisabled: StateFlow<Boolean> = _bluetoothDisabled.asStateFlow()
+
     private val deviceMap = ConcurrentHashMap<String, BluetoothDevice>()
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var scanJob: Job? = null
@@ -107,22 +110,26 @@ class BluetoothScannerViewModel : ViewModel() {
             val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
             bluetoothAdapter = manager.adapter
 
-            if (bluetoothAdapter?.isEnabled == true) {
-                deviceMap.clear()
-                _discoveredDevices.value = emptyList()
-                bluetoothAdapter?.bluetoothLeScanner?.startScan(scanCallback)
-                _isScanning.value = true
-                
-                // Automatic 60-second timeout for battery safety
-                scanJob = viewModelScope.launch {
-                    val duration = 60000L
-                    val startTime = System.currentTimeMillis()
-                    while (System.currentTimeMillis() - startTime < duration) {
-                        _scanProgress.value = (System.currentTimeMillis() - startTime) / duration.toFloat()
-                        delay(500)
-                    }
-                    stopScan()
+            if (bluetoothAdapter == null || bluetoothAdapter?.isEnabled != true) {
+                _bluetoothDisabled.value = true
+                return
+            }
+            _bluetoothDisabled.value = false
+
+            deviceMap.clear()
+            _discoveredDevices.value = emptyList()
+            bluetoothAdapter?.bluetoothLeScanner?.startScan(scanCallback)
+            _isScanning.value = true
+
+            // Automatic 60-second timeout for battery safety
+            scanJob = viewModelScope.launch {
+                val duration = 60000L
+                val startTime = System.currentTimeMillis()
+                while (System.currentTimeMillis() - startTime < duration) {
+                    _scanProgress.value = (System.currentTimeMillis() - startTime) / duration.toFloat()
+                    delay(500)
                 }
+                stopScan()
             }
         } catch (e: SecurityException) {
             _isScanning.value = false

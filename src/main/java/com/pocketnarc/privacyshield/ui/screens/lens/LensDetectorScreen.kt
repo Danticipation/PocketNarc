@@ -47,6 +47,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 
 data class CandidateSpot(
@@ -68,6 +69,7 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
     
     var isSweepStarted by remember { mutableStateOf(false) }
     var isFrozen by remember { mutableStateOf(false) }
+    val isFrozenAtomic = remember { AtomicBoolean(false) }
     var frozenBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     var currentCandidates by remember { mutableStateOf<List<CandidateSpot>>(emptyList()) }
@@ -104,8 +106,7 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
             var lastCandidates = mutableListOf<CandidateSpot>()
 
             imageAnalysis.setAnalyzer(analysisExecutor) { imageProxy ->
-                // Check freeze state via snapshot to avoid redundant work
-                if (isFrozen) {
+                if (isFrozenAtomic.get()) {
                     imageProxy.close()
                     return@setAnalyzer
                 }
@@ -189,6 +190,26 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (!isSweepStarted) {
                 PreSweepInstructions(onStart = { isSweepStarted = true })
+            } else if (!cameraPermissionState.status.isGranted) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(64.dp))
+                    Spacer(Modifier.height(24.dp))
+                    Text("CAMERA_ACCESS_REQUIRED", color = Color.White, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(16.dp))
+                    Text("Lens sweep requires camera access to detect optical glints.", color = Color.Gray, fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(24.dp))
+                    Button(onClick = { cameraPermissionState.launchPermissionRequest() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)), shape = MaterialTheme.shapes.medium) {
+                        Text("GRANT_PERMISSION", color = Color.Black, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    }
+                    Spacer(Modifier.height(24.dp))
+                    TextButton(onClick = { isSweepStarted = false }) {
+                        Text("BACK", color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                    }
+                }
             } else if (cameraPermissionState.status.isGranted) {
                 if (isFrozen && frozenBitmap != null) {
                     Image(
@@ -202,7 +223,8 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
                         factory = { previewView }, 
                         modifier = Modifier.fillMaxSize().clickable { 
                             frozenBitmap = previewView.bitmap
-                            isFrozen = true 
+                            isFrozen = true
+                            isFrozenAtomic.set(true)
                         }
                     )
                 }
@@ -255,6 +277,7 @@ fun LensDetectorScreen(onNavigateBack: () -> Unit) {
                             Button(
                                 onClick = { 
                                     isFrozen = false
+                                    isFrozenAtomic.set(false)
                                     frozenBitmap = null
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.White),

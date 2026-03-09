@@ -68,6 +68,9 @@ dependencies {
     // Play Integrity
     implementation(libs.play.integrity)
     
+    // FFT for audio spectrum analysis
+    implementation(libs.jtransforms)
+    
     // Image Loading
     implementation(libs.coil.compose)
 

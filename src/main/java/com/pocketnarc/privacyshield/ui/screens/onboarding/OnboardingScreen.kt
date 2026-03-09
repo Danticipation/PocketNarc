@@ -18,14 +18,12 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.pocketnarc.privacyshield.R
 import com.pocketnarc.privacyshield.data.OnboardingRepository
-import kotlinx.coroutines.launch
 
 @Composable
 fun OnboardingScreen(
     onboardingRepository: OnboardingRepository,
     onComplete: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
     var checked by remember { mutableStateOf(false) }
 
     Column(
@@ -102,12 +100,7 @@ fun OnboardingScreen(
         Spacer(Modifier.height(32.dp))
 
         Button(
-            onClick = {
-                scope.launch {
-                    onboardingRepository.setOnboardingComplete()
-                    onComplete()
-                }
-            },
+            onClick = { onComplete() },
             enabled = checked,
             modifier = Modifier.fillMaxWidth().height(56.dp),
             colors = ButtonDefaults.buttonColors(

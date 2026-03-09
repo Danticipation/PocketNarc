@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.*
+import org.jtransforms.fft.FloatFFT_1D
 
 class AudioMonitorViewModel : ViewModel() {
 
@@ -43,7 +44,14 @@ class AudioMonitorViewModel : ViewModel() {
 
     private val sampleRate = 44100
     private val fftSize = 1024
-    
+    private val spectrumBins = 64
+
+    private val fft = FloatFFT_1D(fftSize.toLong())
+    private val window = FloatArray(fftSize) { i ->
+        (0.5f * (1 - cos(2 * PI.toFloat() * i / (fftSize - 1)))).toFloat() // Hann window
+    }
+    private val fftBuffer = FloatArray(fftSize)
+
     private var ultrasonicBaseline = 0.02f
     private var detectionPersistence = 0
     private var peakDb = 0f
@@ -91,7 +99,7 @@ class AudioMonitorViewModel : ViewModel() {
                     }
                 }
             } catch (e: Exception) {
-                _forensicMessage.value = "SCAN_ERROR: HARDWARE_CONFLIT"
+                _forensicMessage.value = "SCAN_ERROR: HARDWARE_CONFLICT"
             } finally {
                 stopMonitoring()
                 _lastScanSummary.value = "PEAK: ${peakDb.toInt()}dB | SPIKES: $totalSpikes"
@@ -105,9 +113,13 @@ class AudioMonitorViewModel : ViewModel() {
         _isCalibrating.value = true
         _forensicMessage.value = "CALIBRATING_ENVIRONMENT (STAY_QUIET)"
         
-        var totalEnergy = 0f
+        var totalHighFreqEnergy = 0f
+        var validSamples = 0
         val samples = 30
         val tempBuffer = ShortArray(fftSize)
+        val halfFft = fftSize / 2
+        val bin14k = (14000f * fftSize / sampleRate).toInt()
+        val bin20k = (20000f * fftSize / sampleRate).toInt().coerceAtMost(halfFft)
         
         try {
             audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize)
@@ -118,9 +130,25 @@ class AudioMonitorViewModel : ViewModel() {
                 _calibrationProgress.value = i / samples.toFloat()
                 val read = audioRecord?.read(tempBuffer, 0, fftSize) ?: 0
                 if (read == fftSize) {
-                    var sum = 0.0
-                    for (s in tempBuffer) sum += s * s.toDouble()
-                    totalEnergy += sqrt(sum / fftSize).toFloat() / 32768f
+                    for (j in 0 until fftSize) {
+                        fftBuffer[j] = (tempBuffer[j] / 32768f) * window[j]
+                    }
+                    fft.realForward(fftBuffer)
+                    var hfEnergy = 0f
+                    for (k in bin14k..bin20k) {
+                        val re = when (k) {
+                            0 -> fftBuffer[0]
+                            halfFft -> fftBuffer[1]
+                            else -> fftBuffer[2 * k]
+                        }
+                        val im = when (k) {
+                            0, halfFft -> 0f
+                            else -> fftBuffer[2 * k + 1]
+                        }
+                        hfEnergy += sqrt(re * re + im * im) / fftSize
+                    }
+                    totalHighFreqEnergy += hfEnergy
+                    validSamples++
                 }
                 delay(100)
             }
@@ -129,7 +157,7 @@ class AudioMonitorViewModel : ViewModel() {
             audioRecord?.release()
             audioRecord = null
             
-            ultrasonicBaseline = (totalEnergy / samples).coerceAtLeast(0.005f)
+            ultrasonicBaseline = (totalHighFreqEnergy / validSamples.coerceAtLeast(1)).coerceAtLeast(0.001f)
             _isCalibrating.value = false
             return true
         } catch (e: Exception) {
@@ -151,28 +179,46 @@ class AudioMonitorViewModel : ViewModel() {
     }
 
     private fun processForensicAudio(buffer: ShortArray) {
+        // RMS for decibel level
         var sum = 0.0
         for (s in buffer) sum += s * s.toDouble()
         val currentDb = (20 * log10(sqrt(sum / buffer.size).coerceAtLeast(1.0))).toFloat().coerceIn(0f, 120f)
         _decibels.value = currentDb
         if (currentDb > peakDb) peakDb = currentDb
 
-        val magnitudes = FloatArray(64)
-        var highFreqEnergy = 0f
-        
-        for (bin in 0 until 64) {
-            val freq = bin * (sampleRate.toFloat() / fftSize)
-            var real = 0f; var imag = 0f
-            val step = fftSize / 256
-            for (n in 0 until 256 step step) {
-                val angle = 2f * PI.toFloat() * bin * n / 256f
-                real += buffer[n] * cos(angle)
-                imag += buffer[n] * sin(angle)
+        // Convert PCM to float, apply Hann window, run FFT
+        for (i in 0 until fftSize) {
+            fftBuffer[i] = (buffer[i] / 32768f) * window[i]
+        }
+        fft.realForward(fftBuffer)
+
+        // Extract magnitudes from packed output (JTransforms realForward format):
+        // a[0]=DC, a[1]=Nyquist, a[2k]=Re[k], a[2k+1]=Im[k] for k=1..n/2-1
+        val halfFft = fftSize / 2
+        val fftMagnitudes = FloatArray(halfFft + 1) { k ->
+            val (re, im) = when (k) {
+                0 -> fftBuffer[0] to 0f
+                halfFft -> fftBuffer[1] to 0f
+                else -> fftBuffer[2 * k] to fftBuffer[2 * k + 1]
             }
-            val mag = sqrt(real * real + imag * imag) / 32768f
-            magnitudes[bin] = (mag * 10f).coerceIn(0f, 1f)
-            
-            if (freq in 14000f..20000f) highFreqEnergy += mag
+            sqrt(re * re + im * im) / fftSize
+        }
+
+        // Downsample to spectrumBins for display (avg each group)
+        val magnitudes = FloatArray(spectrumBins) { displayBin ->
+            val startBin = (displayBin * (halfFft + 1)) / spectrumBins
+            val endBin = ((displayBin + 1) * (halfFft + 1)) / spectrumBins
+            var sum = 0f
+            for (k in startBin until endBin) sum += fftMagnitudes[k]
+            (sum / (endBin - startBin).coerceAtLeast(1) * 10f).coerceIn(0f, 1f)
+        }
+
+        // High-freq energy: 14–20 kHz (bins 325–464)
+        val bin14k = (14000f * fftSize / sampleRate).toInt()
+        val bin20k = (20000f * fftSize / sampleRate).toInt().coerceAtMost(halfFft)
+        var highFreqEnergy = 0f
+        for (k in bin14k..bin20k) {
+            highFreqEnergy += fftMagnitudes[k]
         }
 
         val triggerThreshold = ultrasonicBaseline * 5f

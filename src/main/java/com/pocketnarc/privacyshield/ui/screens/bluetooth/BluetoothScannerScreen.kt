@@ -37,6 +37,7 @@ fun BluetoothScannerScreen(onNavigateBack: () -> Unit) {
     val devices by viewModel.discoveredDevices.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val progress by viewModel.scanProgress.collectAsState()
+    val bluetoothDisabled by viewModel.bluetoothDisabled.collectAsState()
 
     var showInstructions by remember { mutableStateOf(true) }
 
@@ -134,6 +135,23 @@ fun BluetoothScannerScreen(onNavigateBack: () -> Unit) {
                     }
 
                     Spacer(Modifier.height(16.dp))
+
+                    if (bluetoothDisabled) {
+                        Surface(
+                            color = Color(0xFF330000),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Bluetooth is disabled. Enable it in Settings to scan for trackers.",
+                                color = Color.White,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                    }
 
                     Button(
                         onClick = { viewModel.startScan(context) },

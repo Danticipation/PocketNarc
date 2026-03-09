@@ -17,6 +17,7 @@ material = "1.12.0"
 coil = "2.7.0"
 camerax = "1.4.0"
 playIntegrity = "1.4.0"
+jtransforms = "3.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -41,6 +42,7 @@ androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 play-integrity = { module = "com.google.android.play:integrity", version.ref = "playIntegrity" }
+jtransforms = { module = "com.github.wendykierp:JTransforms", version.ref = "jtransforms" }
 
 # CameraX
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
