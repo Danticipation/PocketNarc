@@ -60,14 +60,14 @@ class MagnetometerViewModel(
     private val _anomalyHistory = MutableStateFlow<List<AnomalyLog>>(emptyList())
     val anomalyHistory: StateFlow<List<AnomalyLog>> = _anomalyHistory.asStateFlow()
 
-    private val filterAlpha = 0.92f           
-    private val calibrationSampleCount = 150  
+    private val filterAlpha = 0.92f           // Weight for smoothed value (low-pass: 92% old, 8% new)
+    private val calibrationSampleCount = 150
     private var smoothedMagnitude = 0f
     private val calibrationSamples = mutableListOf<Float>()
     private var baselineValue = 0f
 
     private val devHistory = LinkedList<Float>()
-    private val historySize = 8
+    private val historySize = 24             // ~1.5s at SENSOR_DELAY_GAME for stable averaging
 
     fun startCalibration() {
         viewModelScope.launch {
@@ -92,7 +92,7 @@ class MagnetometerViewModel(
     }
 
     override fun onStart(owner: LifecycleOwner) {
-        sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_UI)
+        sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_GAME)
     }
 
     override fun onStop(owner: LifecycleOwner) {
@@ -103,7 +103,7 @@ class MagnetometerViewModel(
         if (event?.sensor?.type != Sensor.TYPE_MAGNETIC_FIELD) return
         
         val rawMagnitude = sqrt(event.values[0]*event.values[0] + event.values[1]*event.values[1] + event.values[2]*event.values[2])
-        smoothedMagnitude = if (smoothedMagnitude == 0f) rawMagnitude else filterAlpha * rawMagnitude + (1 - filterAlpha) * smoothedMagnitude
+        smoothedMagnitude = if (smoothedMagnitude == 0f) rawMagnitude else filterAlpha * smoothedMagnitude + (1 - filterAlpha) * rawMagnitude
         _filteredMagnitude.value = smoothedMagnitude
 
         if (_isCalibrating.value) {
@@ -171,6 +171,12 @@ class MagnetometerViewModel(
         }
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        // SensorManager.SENSOR_STATUS_UNRELIABLE(0) or SENSOR_STATUS_ACCURACY_LOW(1) = noisy readings
+        // When unreliable, readings may be sporadic; consider re-calibrating when accuracy improves
+        if (sensor?.type == Sensor.TYPE_MAGNETIC_FIELD && accuracy == SensorManager.SENSOR_STATUS_UNRELIABLE && !_isCalibrating.value) {
+            devHistory.clear()  // Flush noisy deviation history
+        }
+    }
     override fun onCleared() { sensorManager.unregisterListener(this); super.onCleared() }
 }
